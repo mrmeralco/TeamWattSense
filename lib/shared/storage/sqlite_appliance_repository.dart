@@ -245,4 +245,11 @@ class SqliteDailyUsageRepository implements DailyUsageRepository {
     await database.delete('daily_usage',
         where: 'appliance_id = ?', whereArgs: [applianceId]);
   }
+
+  @override
+  Future<void> removeForApplianceOnDate(String applianceId, DateTime date) async {
+    await database.delete('daily_usage',
+        where: 'appliance_id = ? AND date = ?',
+        whereArgs: [applianceId, _key(date)]);
+  }
 }
