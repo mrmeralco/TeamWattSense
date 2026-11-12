@@ -1,3 +1,4 @@
+import 'auth_request_guard.dart';
 import 'legal_consent.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import '../../../shared/theme/wattwise_theme.dart';
 
 String authErrorMessage(FirebaseAuthException e) => switch (e.code) {
       'invalid-email' => 'Enter a valid email address.',
+      'password-does-not-meet-requirements' ||
       'weak-password' =>
         'Choose a stronger password that meets the account password policy.',
       'email-already-in-use' =>
@@ -31,6 +33,7 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   final form = GlobalKey<FormState>();
+  final navigator = GlobalKey<NavigatorState>();
   final name = TextEditingController(),
       email = TextEditingController(),
       password = TextEditingController(),
@@ -82,11 +85,40 @@ class _AuthScreenState extends State<AuthScreen> {
       message = null;
     });
     try {
+      await AuthRequestGuard.reserve(mode);
       if (mode == 'register') {
+        registrationInProgress = true;
         final displayName = name.text.trim();
         final credential = await widget.auth.createUserWithEmailAndPassword(
             email: email.text.trim(), password: password.text);
-        await credential.user?.updateDisplayName(displayName);
+        var emailSent = false;
+        try {
+          await credential.user?.updateDisplayName(displayName);
+          await AuthRequestGuard.reserve('verify_send');
+          await credential.user?.sendEmailVerification();
+          emailSent = true;
+        } catch (_) {
+          // The account exists even if profile update or email delivery fails.
+        }
+        await widget.auth.signOut();
+        registrationInProgress = false;
+        pendingPolicyEmails.remove(consentEmail);
+        if (mounted) {
+          changeMode('login');
+          await showDialog<void>(
+              context: navigator.currentContext!,
+              builder: (dialogContext) => AlertDialog(
+                    title: const Text('Account created'),
+                    content: Text(emailSent
+                        ? 'Proceed to login to verify your email. We sent a verification link to your email. Check your inbox or spam folder and open the link before accessing WattWise.'
+                        : 'Proceed to login to verify your email. Your account was created, but the verification email could not be sent. Log in to request a verification link.'),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          child: const Text('Go to log in'))
+                    ],
+                  ));
+        }
       } else if (mode == 'reset') {
         try {
           await widget.auth.sendPasswordResetEmail(email: email.text.trim());
@@ -102,15 +134,37 @@ class _AuthScreenState extends State<AuthScreen> {
         await widget.auth.signInWithEmailAndPassword(
             email: email.text.trim(), password: password.text);
       }
+    } on AuthRequestLimit catch (e) {
+      pendingPolicyEmails.remove(consentEmail);
+      if (mounted) setState(() => message = e.message);
     } on FirebaseAuthException catch (e) {
       pendingPolicyEmails.remove(consentEmail);
-      if (mounted) setState(() => message = authErrorMessage(e));
+      if (mounted && mode == 'register' && e.code == 'email-already-in-use') {
+        registrationInProgress = false;
+        changeMode('login');
+        await showDialog<void>(
+          context: navigator.currentContext!,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Proceed to login'),
+            content: const Text(
+                'Proceed to login to verify your email. If your account is already verified, log in to continue. Use Forgot password if you need to recover access.'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Go to log in'))
+            ],
+          ),
+        );
+      } else if (mounted) {
+        setState(() => message = authErrorMessage(e));
+      }
     } catch (_) {
       pendingPolicyEmails.remove(consentEmail);
       if (mounted) {
         setState(() => message = 'Unable to connect. Please try again.');
       }
     } finally {
+      registrationInProgress = false;
       if (mounted) setState(() => busy = false);
     }
   }
@@ -215,8 +269,8 @@ class _AuthScreenState extends State<AuthScreen> {
             }
             return v == null || v.isEmpty
                 ? 'Enter your password'
-                : mode == 'register' && v.length < 8
-                    ? 'Use at least 8 characters'
+                : mode == 'register'
+                    ? registrationPasswordError(v)
                     : null;
           }),
     ]);
@@ -263,7 +317,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ],
         if (mode == 'register') ...[
           const SizedBox(height: 8),
-          Text('Use at least 8 characters.', style: type(11, 16, color: muted)),
+          Text(passwordHelp, style: type(11, 16, color: muted)),
           const SizedBox(height: 16),
           field('Confirm password', 'Re-enter your password', confirm,
               secret: true, confirmation: true),
@@ -300,6 +354,7 @@ class _AuthScreenState extends State<AuthScreen> {
       ]));
   @override
   Widget build(BuildContext context) => MaterialApp(
+      navigatorKey: navigator,
       theme: wattwiseTheme(false),
       debugShowCheckedModeBanner: false,
       home: Scaffold(

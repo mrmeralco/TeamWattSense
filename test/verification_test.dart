@@ -1,3 +1,4 @@
+import 'package:wattwise/features/auth/screens/auth_request_guard.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -59,6 +60,13 @@ class TestAuth implements FirebaseAuth {
 }
 
 void main() {
+  setUp(() {
+    AuthRequestGuard.testReserve = (_) async {};
+  });
+  tearDown(() {
+    AuthRequestGuard.testReserve = null;
+    registrationInProgress = false;
+  });
   testWidgets(
       'Unverified users cannot open workspace; verified reload unlocks it',
       (tester) async {

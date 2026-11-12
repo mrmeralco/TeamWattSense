@@ -40,7 +40,7 @@ class SettingsScreen extends StatelessWidget {
     }
 
     Future<void> changePop(bool value) async {
-      final start = DateTime.now().add(const Duration(days: 1));
+      final start = DateTime.now();
       final applies = DateTime(start.year, start.month, start.day);
       final confirmed = await showDialog<bool>(
         context: context,
@@ -48,7 +48,7 @@ class SettingsScreen extends StatelessWidget {
           title: Text(
               c.t(value ? 'Enable POP estimates?' : 'Disable POP estimates?')),
           content: Text(c.t(
-              'This takes effect tomorrow (${applies.month}/${applies.day}/${applies.year}). Existing daily usage and overview history will not be erased.')),
+              'This applies today (${applies.month}/${applies.day}/${applies.year}). POP entries use turned-on and turned-off times to split usage into peak and off-peak hours. Existing usage is kept; entries without times cannot be split automatically.')),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context, false),

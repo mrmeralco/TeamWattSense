@@ -23,6 +23,7 @@ class CloudSync {
   Timer? _timer;
   Future<void>? _running;
   bool _stopped = false;
+  DateTime? _lastAttempt;
   Timestamp? _cursor;
   CollectionReference<Map<String, dynamic>> get records =>
       firestore.collection('wattwise_users').doc(uid).collection('records');
@@ -46,7 +47,14 @@ class CloudSync {
 
   Future<void> sync() {
     if (!active) return Future.value();
-    return _running ??= _cycle().whenComplete(() => _running = null);
+    if (_running != null) return _running!;
+    final now = DateTime.now();
+    if (_lastAttempt != null &&
+        now.difference(_lastAttempt!) < const Duration(seconds: 10)) {
+      return Future.value();
+    }
+    _lastAttempt = now;
+    return _running = _cycle().whenComplete(() => _running = null);
   }
 
   void status(String value) {

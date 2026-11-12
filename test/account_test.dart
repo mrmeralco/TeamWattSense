@@ -1,3 +1,4 @@
+import 'package:wattwise/features/auth/screens/auth_request_guard.dart';
 import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -37,6 +38,13 @@ class FakeAuth implements FirebaseAuth {
 }
 
 void main() {
+  setUp(() {
+    AuthRequestGuard.testReserve = (_) async {};
+  });
+  tearDown(() {
+    AuthRequestGuard.testReserve = null;
+    registrationInProgress = false;
+  });
   test(
       'Account databases isolate appliances bills logs preferences and preserve legacy data',
       () async {
@@ -106,7 +114,7 @@ void main() {
     await tester.pumpWidget(AuthScreen(auth: auth));
     await tester.enterText(
         find.byType(TextFormField).at(0), 'person@example.com');
-    await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+    await tester.enterText(find.byType(TextFormField).at(1), 'Password123!');
     await tester.tap(find.widgetWithText(FilledButton, 'Log in'));
     await tester.pumpAndSettle();
     expect(auth.calls, isEmpty);
@@ -125,7 +133,7 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(0), 'Test Person');
     await tester.enterText(
         find.byType(TextFormField).at(1), 'person@example.com');
-    await tester.enterText(find.byType(TextFormField).at(2), 'password123');
+    await tester.enterText(find.byType(TextFormField).at(2), 'Password123!');
     await tester.enterText(find.byType(TextFormField).at(3), 'different');
     for (var i = 0; i < 2; i++) {
       await tester.ensureVisible(find.byType(CheckboxListTile).at(i));
@@ -137,13 +145,17 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
     await tester.pumpAndSettle();
     expect(auth.calls.length, 1);
-    await tester.enterText(find.byType(TextFormField).at(3), 'password123');
+    await tester.enterText(find.byType(TextFormField).at(3), 'Password123!');
     await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
     await tester.pumpAndSettle();
     expect(auth.calls.last, 'register:person@example.com');
-    await tester.ensureVisible(find.text('Log in'));
-    await tester.tap(find.text('Log in'));
+    expect(find.text('Proceed to login'), findsOneWidget);
+    expect(find.textContaining('Proceed to login to verify your email'),
+        findsOneWidget);
+    expect(find.textContaining('Unable to register this email'), findsNothing);
+    await tester.tap(find.text('Go to log in'));
     await tester.pumpAndSettle();
+    expect(find.text('Welcome back'), findsOneWidget);
     await tester.ensureVisible(find.text('Forgot password?'));
     await tester.tap(find.text('Forgot password?'));
     await tester.pumpAndSettle();
