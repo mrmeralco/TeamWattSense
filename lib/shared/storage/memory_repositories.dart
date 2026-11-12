@@ -29,6 +29,11 @@ class MemoryBillRepository implements BillRepository {
   }
 
   @override
+  Future<void> remove(String id) async {
+    _items.remove(id);
+  }
+
+  @override
   Future<Bill?> latestReviewed() async {
     final items = _items.values.where((b) => b.reviewed).toList()
       ..sort((a, b) => b.periodEnd.compareTo(a.periodEnd));

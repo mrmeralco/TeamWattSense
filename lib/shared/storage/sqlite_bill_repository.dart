@@ -81,4 +81,9 @@ class SqliteBillRepository implements BillRepository {
         },
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
+
+  @override
+  Future<void> remove(String id) async {
+    await database.delete('bills', where: 'id = ?', whereArgs: [id]);
+  }
 }

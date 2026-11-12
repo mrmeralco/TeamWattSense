@@ -275,4 +275,11 @@ class AppController extends ChangeNotifier {
       ..sort((a, b) => b.periodEnd.compareTo(a.periodEnd));
     notifyListeners();
   }
+
+  Future<void> removeBill(String id) async {
+    await billRepository.remove(id);
+    bills = await billRepository.list()
+      ..sort((a, b) => b.periodEnd.compareTo(a.periodEnd));
+    notifyListeners();
+  }
 }
