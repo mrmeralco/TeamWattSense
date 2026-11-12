@@ -1,6 +1,8 @@
+import 'ai_request_budget.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 
 String firebaseAiFailureMessage(Object error) {
+  if (error is AiRequestLimit) return error.message;
   if (error is ServiceApiNotEnabled) {
     return 'Enable Firebase AI Logic in iseeapp-ddf3a using the Google Cloud Vertex AI backend.';
   }

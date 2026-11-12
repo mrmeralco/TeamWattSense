@@ -1,3 +1,4 @@
+import 'shared/firebase/ai_request_budget.dart';
 import 'package:flutter/material.dart';
 import 'app/app_controller.dart';
 import 'app/wattwise_app.dart';
@@ -27,7 +28,10 @@ Future<void> main() async {
       final app = await initializeWattWiseFirebase(
               DefaultFirebaseOptions.currentPlatform)
           .timeout(const Duration(seconds: 12));
-      mira = FirebaseMiraService(app, MiraContextProvider(appliances, bills));
+      mira = FirebaseMiraService(
+          app,
+          MiraContextProvider(appliances, bills, dailyUsage),
+          AiRequestBudget(appliances.database));
     } catch (_) {
       error =
           'Mira is unavailable. Your appliances and bills still work offline. Check your connection and Firebase configuration.';

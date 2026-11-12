@@ -1,3 +1,6 @@
+import '../../../app/app_controller.dart';
+import 'mira_appliance_review.dart';
+import '../services/mira_policy.dart';
 import '../../../shared/firebase/ai_failure.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_ai/firebase_ai.dart';
@@ -10,13 +13,17 @@ class MiraScreen extends StatefulWidget {
   const MiraScreen(
       {super.key,
       required this.service,
+      required this.controller,
       required this.language,
       this.unavailableReason,
+      this.suggestions = const [],
       this.estimatedRate = 12,
       this.registeredPop = false});
   final FirebaseMiraService? service;
+  final AppController controller;
   final String language;
   final String? unavailableReason;
+  final List<String> suggestions;
   final double estimatedRate;
   final bool registeredPop;
   @override
@@ -51,18 +58,32 @@ class _MiraScreenState extends State<MiraScreen> {
     });
     _scrollDown();
     try {
-      final answer = await service.reply(question, List.of(_history),
+      final reply = await service.reply(question, List.of(_history),
           language: widget.language,
           rate: widget.estimatedRate,
           registeredPop: widget.registeredPop);
       if (!mounted) return;
+      var answer = reply.text;
+      if (reply.action != null) {
+        final result = await showDialog<String>(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => MiraApplianceReview(
+                action: reply.action!, controller: widget.controller));
+        if (!mounted) return;
+        answer = result ?? 'Appliance change cancelled. Nothing was saved.';
+      }
       setState(() {
         _messages.add((user: false, text: answer));
-        _history.addAll([
-          Content.text(question),
-          Content.model([TextPart(answer)])
-        ]);
-        if (_history.length > 20) _history.removeRange(0, _history.length - 20);
+        if (miraLocalReply(question,
+                hasHistory: _history.isNotEmpty, language: widget.language) ==
+            null) {
+          _history.addAll([
+            Content.text(question),
+            Content.model([TextPart(answer)])
+          ]);
+        }
+        if (_history.length > 4) _history.removeRange(0, _history.length - 4);
       });
     } catch (error) {
       if (mounted) {
@@ -181,7 +202,12 @@ class _MiraScreenState extends State<MiraScreen> {
         SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(children: [
-              for (final suggestion in ['Explain my bill', 'Appliance tips'])
+              for (final suggestion in [
+                ...widget.suggestions,
+                'Add an appliance',
+                'Show my appliances',
+                'Read my saved bills'
+              ])
                 Padding(
                     padding: const EdgeInsets.only(right: 10),
                     child: OutlinedButton(
@@ -208,11 +234,11 @@ class _MiraScreenState extends State<MiraScreen> {
                   child: TextField(
                       controller: _input,
                       enabled: !_busy && widget.service != null,
-                      maxLength: 4000,
+                      maxLength: 600,
                       minLines: 1,
                       maxLines: 4,
                       decoration: InputDecoration(
-                          hintText: t('Ask Mira anything...'),
+                          hintText: t('Ask about your electricity usage...'),
                           counterText: '',
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,

@@ -1,3 +1,4 @@
+import '../../../shared/firebase/ai_request_budget.dart';
 import '../services/firebase_bill_reader.dart';
 import '../../../shared/firebase/ai_failure.dart';
 import 'dart:typed_data';
@@ -53,7 +54,12 @@ class _BillReviewFormState extends State<BillReviewForm> {
       scanMessage = 'Reading your bill…';
     });
     try {
-      final data = await FirebaseBillReader()
+      final db = widget.controller.database;
+      if (db == null) {
+        throw const AiRequestLimit(
+            'Local storage is required to track AI request limits.');
+      }
+      final data = await FirebaseBillReader(AiRequestBudget(db))
           .read(image, chargeTypes.map((c) => c.$1).toList());
       if (!mounted) return;
       String number(dynamic value, {bool signed = false}) {

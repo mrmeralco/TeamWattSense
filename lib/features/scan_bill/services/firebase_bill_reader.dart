@@ -1,3 +1,4 @@
+import '../../../shared/firebase/ai_request_budget.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:firebase_ai/firebase_ai.dart';
@@ -7,6 +8,8 @@ import '../../../shared/firebase/firebase_bootstrap.dart';
 
 /// Extracts a draft only. The review form controls when data is saved locally.
 class FirebaseBillReader {
+  FirebaseBillReader(this.budget);
+  final AiRequestBudget budget;
   Future<Map<String, dynamic>> read(
       Uint8List image, List<String> categories) async {
     final app = Firebase.apps.isEmpty
@@ -18,6 +21,8 @@ class FirebaseBillReader {
       model: const String.fromEnvironment('MIRA_MODEL',
           defaultValue: 'gemini-3.8-flash'),
       generationConfig: GenerationConfig(
+        maxOutputTokens: 1000,
+        thinkingConfig: ThinkingConfig.withThinkingLevel(ThinkingLevel.low),
         responseMimeType: 'application/json',
         responseSchema: Schema.object(properties: {
           'isElectricityBill': Schema.boolean(),

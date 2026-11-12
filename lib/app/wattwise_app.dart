@@ -1,3 +1,4 @@
+import '../features/mira/services/mira_suggestions.dart';
 import 'package:flutter/material.dart';
 import '../features/dashboard/screens/dashboard_screen.dart';
 import '../features/scan_bill/screens/scan_bill_screen.dart';
@@ -48,6 +49,12 @@ class _WattWiseAppState extends State<WattWiseApp> {
                                         onAskMira: () =>
                                             setState(() => index = 2)),
                                     MiraScreen(
+                                        controller: c,
+                                        suggestions: miraSuggestions(
+                                            c.appliances,
+                                            c.dailyUsages,
+                                            c.bills,
+                                            language: c.language),
                                         service: widget.mira,
                                         language: c.language,
                                         unavailableReason: widget.miraError,

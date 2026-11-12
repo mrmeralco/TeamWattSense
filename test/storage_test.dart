@@ -1,3 +1,4 @@
+import 'package:wattwise/shared/models/daily_usage.dart';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -54,10 +55,26 @@ void main() {
         consumptionKwh: 999,
         totalAmount: 9999,
         charges: const []));
-    final context = MiraContextProvider(a, bills);
+    final daily = SqliteDailyUsageRepository(a.database);
+    final now = DateTime.now();
+    await daily.saveAll([
+      DailyUsage(
+          applianceId: 'fan',
+          date: DateTime(now.year, now.month, now.day),
+          hours: 2,
+          watts: 120,
+          quantity: 3)
+    ]);
+    final context = MiraContextProvider(a, bills, daily);
     final first =
         await context.build(language: 'fil', rate: 12, registeredPop: true);
     expect((first['latestReviewedBill'] as Map)['totalAmount'], 1200);
+    expect((first['reviewedBills'] as List).length, 1);
+    expect(((first['reviewedBills'] as List).single as Map)['id'], 'reviewed');
+    final logged = (first['loggedUsageByAppliance'] as List).single as Map;
+    expect(logged['loggedKwh'], closeTo(0.72, 1e-9));
+    expect(logged['loggedDays'], 1);
+    expect(logged['loggedUnitHours'], 6);
     await a.save(const Appliance(
         id: 'fan', name: 'Fan', watts: 100, hoursPerDay: 8, daysPerMonth: 30));
     final fresh = await context.build(language: 'fil', rate: 12);
