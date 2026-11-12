@@ -85,14 +85,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               usageDate: applianceDate)));
 
   DateTime _periodStart(DateTime now, int scale, int offset) {
-    if (scale == 0) {
-      final day = DateTime(now.year, now.month, now.day);
-      return day
-          .subtract(Duration(days: day.weekday - 1))
-          .add(Duration(days: 7 * offset));
-    }
-    if (scale == 1) return DateTime(now.year, now.month + offset);
-    return DateTime(now.year + offset, 1);
+    if (scale == 0) return DateTime(now.year, now.month + offset);
+    if (scale == 1) return DateTime(now.year + offset, 1);
+    return DateTime(2024, 1);
   }
 
   double? _recordedBucket(AppController c, DateTime from, DateTime through) {
@@ -107,27 +102,27 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   List<double?> _periodBuckets(AppController c, int scale, DateTime start) {
     if (scale == 0) {
-      return List.generate(
-          7,
-          (i) => _recordedBucket(
-              c, start.add(Duration(days: i)), start.add(Duration(days: i))));
-    }
-    if (scale == 1) {
       final days = DateTime(start.year, start.month + 1, 0).day;
-      final weekCount = ((start.weekday - 1 + days) / 7).ceil();
+      final weekCount = (days / 7).ceil();
       return List.generate(weekCount, (i) {
-        final weekStart =
-            start.add(Duration(days: i * 7 - (start.weekday - 1)));
-        final from = weekStart.isBefore(start) ? start : weekStart;
-        final weekEnd = weekStart.add(const Duration(days: 6));
-        final monthEnd = DateTime(start.year, start.month, days);
-        final through = weekEnd.isAfter(monthEnd) ? monthEnd : weekEnd;
+        final firstDay = i * 7 + 1;
+        final lastDay = math.min(firstDay + 6, days).toInt();
+        final from = DateTime(start.year, start.month, firstDay);
+        final through = DateTime(start.year, start.month, lastDay);
         return _recordedBucket(c, from, through);
       });
     }
-    return List.generate(12, (i) {
-      final from = DateTime(start.year, i + 1);
-      return _recordedBucket(c, from, DateTime(start.year, i + 2, 0));
+    if (scale == 1) {
+      return List.generate(12, (i) {
+        final from = DateTime(start.year, i + 1);
+        return _recordedBucket(c, from, DateTime(start.year, i + 2, 0));
+      });
+    }
+    final currentYear = DateTime.now().year;
+    final yearCount = math.max(0, currentYear - start.year + 1);
+    return List.generate(yearCount, (i) {
+      final year = start.year + i;
+      return _recordedBucket(c, DateTime(year, 1), DateTime(year, 12, 31));
     });
   }
 
@@ -161,37 +156,23 @@ class _DashboardScreenState extends State<DashboardScreen>
           Text(note, style: const TextStyle(fontSize: 10))
         ]));
     final period = _periodStart(now, scale, periodOffset);
-    final periodEnd = scale == 0
-        ? period.add(const Duration(days: 6))
-        : scale == 1
-            ? DateTime(period.year, period.month + 1, 0)
-            : DateTime(period.year, 12, 31);
     final today = DateTime(now.year, now.month, now.day);
     final monthStart = DateTime(now.year, now.month);
     final monthUsage = c.recordedKwh(monthStart, today);
     final popEstimate = c.popGenerationEstimate(monthStart, today);
     final buckets = _periodBuckets(c, scale, period);
-    final firstRecordedDay = <String, DateTime>{};
-    for (final entry in c.dailyUsages) {
-      final day = DateTime(entry.date.year, entry.date.month, entry.date.day);
-      final previous = firstRecordedDay[entry.applianceId];
-      if (previous == null || day.isBefore(previous)) {
-        firstRecordedDay[entry.applianceId] = day;
-      }
-    }
     final visibleAppliances = c.appliances.where((appliance) {
-      final first = firstRecordedDay[appliance.id];
-      return first == null
-          ? !applianceDate.isBefore(today)
-          : !applianceDate.isBefore(first);
+      return c.dailyUsages.any((entry) =>
+          entry.applianceId == appliance.id &&
+          entry.date.year == applianceDate.year &&
+          entry.date.month == applianceDate.month &&
+          entry.date.day == applianceDate.day);
     }).toList();
-    final periodLabel = scale == 1
+    final periodLabel = scale == 0
         ? DateFormat.yMMM().format(period)
-        : scale == 2
+        : scale == 1
             ? '${period.year}'
-            : scale == 0
-                ? '${DateFormat.MMMd().format(period)} – ${DateFormat.MMMd().format(periodEnd)}'
-                : DateFormat.MMMd().format(period);
+            : '${period.year}–${now.year}';
     return ListView(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
         children: [
@@ -271,13 +252,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ]),
                     const SizedBox(height: 8),
                     Row(children: [
-                      IconButton(
-                          constraints: const BoxConstraints.tightFor(
-                              width: 32, height: 32),
-                          padding: const EdgeInsets.all(8),
-                          tooltip: 'Previous period',
-                          onPressed: () => setState(() => periodOffset--),
-                          icon: const DesignIcon('14_6_imgPreviousPeriod')),
+                      if (scale < 2)
+                        IconButton(
+                            constraints: const BoxConstraints.tightFor(
+                                width: 32, height: 32),
+                            padding: const EdgeInsets.all(8),
+                            tooltip: 'Previous period',
+                            onPressed: () => setState(() => periodOffset--),
+                            icon: const DesignIcon('14_6_imgPreviousPeriod')),
                       Expanded(
                           child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 6),
@@ -291,13 +273,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                                   style: const TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600)))),
-                      IconButton(
-                          constraints: const BoxConstraints.tightFor(
-                              width: 32, height: 32),
-                          padding: const EdgeInsets.all(8),
-                          tooltip: 'Next period',
-                          onPressed: () => setState(() => periodOffset++),
-                          icon: const DesignIcon('14_6_imgNextPeriod')),
+                      if (scale < 2)
+                        IconButton(
+                            constraints: const BoxConstraints.tightFor(
+                                width: 32, height: 32),
+                            padding: const EdgeInsets.all(8),
+                            tooltip: 'Next period',
+                            onPressed: periodOffset < 0
+                                ? () => setState(() => periodOffset++)
+                                : null,
+                            icon: const DesignIcon('14_6_imgNextPeriod')),
                     ]),
                     const SizedBox(height: 4),
                     SizedBox(
@@ -588,10 +573,12 @@ class UsagePainter extends CustomPainter {
     for (var i = 0; i < values.length; i++) {
       final value = values[i];
       final x = 30 + width * (i + .5) / values.length;
-      if (scale == 0) {
-        final weekday = DateFormat.E().format(DateTime(2020, 1, 6 + i));
-        label(weekday, Offset(x, height + 8), centered: true);
-      }
+      final category = scale == 0
+          ? 'W${i + 1}'
+          : scale == 1
+              ? DateFormat.MMM().format(DateTime(2020, i + 1))
+              : '${2024 + i}';
+      label(category, Offset(x, height + 8), centered: true);
       if (value == null) continue;
       final barWidth = math.min(32.0, width / values.length * .65).toDouble();
       final bar = Rect.fromLTWH(x - barWidth / 2, height - value / top * height,
@@ -606,12 +593,6 @@ class UsagePainter extends CustomPainter {
                 .createShader(Rect.fromLTWH(0, 0, size.width, height)));
       if (value == 0) {
         canvas.drawCircle(Offset(x, height), 2, Paint()..color = green);
-      }
-      if (scale != 0) {
-        final text = scale == 1
-            ? 'W${i + 1}'
-            : DateFormat.MMM().format(DateTime(2020, i + 1));
-        label(text, Offset(x, height + 8), centered: true);
       }
     }
   }

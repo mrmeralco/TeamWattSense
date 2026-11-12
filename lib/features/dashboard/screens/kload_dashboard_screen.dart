@@ -161,6 +161,12 @@ class _KLoadDashboardScreenState extends State<KLoadDashboardScreen> {
   Widget build(BuildContext context) {
     final c = widget.controller;
     final today = DateTime.now();
+    final todayEntries = c.appliances.where((appliance) =>
+        c.dailyUsages.any((entry) =>
+            entry.applianceId == appliance.id &&
+            entry.date.year == today.year &&
+            entry.date.month == today.month &&
+            entry.date.day == today.day)).toList();
     final existingIds = c.appliances.map((a) => a.id).toSet();
     final database = c.database;
     if (database == null) {
@@ -279,13 +285,13 @@ class _KLoadDashboardScreenState extends State<KLoadDashboardScreen> {
                       'Tap an appliance to enter or revise today’s usage, just as in the regular dashboard.',
                       style: TextStyle(fontSize: 12, color: muted)),
                   const SizedBox(height: 8),
-                  if (c.appliances.isEmpty)
+                  if (todayEntries.isEmpty)
                     const Padding(
                         padding: EdgeInsets.symmetric(vertical: 12),
                         child: Text(
-                            'No appliances yet. Add one to start recording usage.'))
+                            'No appliance entries yet for today. Add one to start recording usage.'))
                   else
-                    for (final appliance in c.appliances)
+                    for (final appliance in todayEntries)
                       Builder(builder: (context) {
                         final matching = c.dailyUsages.where((entry) =>
                             entry.applianceId == appliance.id &&
