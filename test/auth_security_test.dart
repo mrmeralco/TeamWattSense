@@ -149,7 +149,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
     await tester.pumpAndSettle();
     expect(find.text('Account created'), findsOneWidget);
-    expect(find.textContaining('Try logging in and verifying'), findsOneWidget);
+    expect(find.textContaining('Proceed to login to verify'), findsOneWidget);
     expect(auth.currentUser, isNull);
     expect(auth.user.sent, 1);
     await tester.tap(find.text('Go to log in'));

@@ -110,8 +110,8 @@ class _AuthScreenState extends State<AuthScreen> {
               builder: (dialogContext) => AlertDialog(
                     title: const Text('Account created'),
                     content: Text(emailSent
-                        ? 'Try logging in and verifying your account. We sent a verification link to your email. Check your inbox or spam folder and open the link before accessing WattWise.'
-                        : 'Try logging in and verifying your account. Your account was created, but the verification email could not be sent. Log in to request a verification link.'),
+                        ? 'Proceed to login to verify your email. We sent a verification link to your email. Check your inbox or spam folder and open the link before accessing WattWise.'
+                        : 'Proceed to login to verify your email. Your account was created, but the verification email could not be sent. Log in to request a verification link.'),
                     actions: [
                       TextButton(
                           onPressed: () => Navigator.pop(dialogContext),
@@ -139,7 +139,25 @@ class _AuthScreenState extends State<AuthScreen> {
       if (mounted) setState(() => message = e.message);
     } on FirebaseAuthException catch (e) {
       pendingPolicyEmails.remove(consentEmail);
-      if (mounted) setState(() => message = authErrorMessage(e));
+      if (mounted && mode == 'register' && e.code == 'email-already-in-use') {
+        registrationInProgress = false;
+        changeMode('login');
+        await showDialog<void>(
+          context: navigator.currentContext!,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Proceed to login'),
+            content: const Text(
+                'Proceed to login to verify your email. If your account is already verified, log in to continue. Use Forgot password if you need to recover access.'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Go to log in'))
+            ],
+          ),
+        );
+      } else if (mounted) {
+        setState(() => message = authErrorMessage(e));
+      }
     } catch (_) {
       pendingPolicyEmails.remove(consentEmail);
       if (mounted) {

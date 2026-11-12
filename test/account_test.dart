@@ -149,9 +149,13 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
     await tester.pumpAndSettle();
     expect(auth.calls.last, 'register:person@example.com');
-    await tester.ensureVisible(find.text('Log in'));
-    await tester.tap(find.text('Log in'));
+    expect(find.text('Proceed to login'), findsOneWidget);
+    expect(find.textContaining('Proceed to login to verify your email'),
+        findsOneWidget);
+    expect(find.textContaining('Unable to register this email'), findsNothing);
+    await tester.tap(find.text('Go to log in'));
     await tester.pumpAndSettle();
+    expect(find.text('Welcome back'), findsOneWidget);
     await tester.ensureVisible(find.text('Forgot password?'));
     await tester.tap(find.text('Forgot password?'));
     await tester.pumpAndSettle();
