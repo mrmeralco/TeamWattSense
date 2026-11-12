@@ -19,14 +19,66 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int scale = 2;
   int periodOffset = 0;
+  int applianceDayOffset = 0;
   String money(double n) =>
       NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2)
           .format(n);
+  DateTime get applianceDate {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day + applianceDayOffset);
+  }
+
   void edit([Appliance? a]) => Navigator.push(
       context,
       MaterialPageRoute<void>(
           builder: (_) =>
-              ApplianceForm(controller: widget.controller, appliance: a)));
+              ApplianceForm(controller: widget.controller, appliance: a, usageDate: applianceDate)));
+
+  DateTime _periodStart(DateTime now, int scale, int offset) {
+    if (scale == 0) return DateTime(now.year, now.month, now.day + offset);
+    if (scale == 1) {
+      final day = DateTime(now.year, now.month, now.day);
+      return day.subtract(Duration(days: day.weekday - 1)).add(Duration(days: 7 * offset));
+    }
+    if (scale == 2) return DateTime(now.year, now.month + offset);
+    return DateTime(now.year + offset, 1);
+  }
+
+  double? _recordedBucket(AppController c, DateTime from, DateTime through) {
+    final start = DateTime(from.year, from.month, from.day);
+    final end = DateTime(through.year, through.month, through.day);
+    final hasEntry = c.dailyUsages.any((entry) {
+      final day = DateTime(entry.date.year, entry.date.month, entry.date.day);
+      return !day.isBefore(start) && !day.isAfter(end);
+    });
+    return hasEntry ? c.recordedKwh(start, end) : null;
+  }
+
+  List<double?> _periodBuckets(AppController c, int scale, DateTime start) {
+    if (scale == 0) return [_recordedBucket(c, start, start)];
+    if (scale == 1) {
+      return List.generate(
+          7,
+          (i) => _recordedBucket(
+              c, start.add(Duration(days: i)), start.add(Duration(days: i))));
+    }
+    if (scale == 2) {
+      final days = DateTime(start.year, start.month + 1, 0).day;
+      final weekCount = ((start.weekday - 1 + days) / 7).ceil();
+      return List.generate(weekCount, (i) {
+        final weekStart = start.add(Duration(days: i * 7 - (start.weekday - 1)));
+        final from = weekStart.isBefore(start) ? start : weekStart;
+        final weekEnd = weekStart.add(const Duration(days: 6));
+        final monthEnd = DateTime(start.year, start.month, days);
+        final through = weekEnd.isAfter(monthEnd) ? monthEnd : weekEnd;
+        return _recordedBucket(c, from, through);
+      });
+    }
+    return List.generate(12, (i) {
+      final from = DateTime(start.year, i + 1);
+      return _recordedBucket(c, from, DateTime(start.year, i + 2, 0));
+    });
+  }
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
@@ -57,7 +109,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Text(c.t(label), style: const TextStyle(fontSize: 11)),
           const SizedBox(height: 12),
           Row(children: [
-            if (label == 'Total Usage (This Month)') ...[
+            if (label == 'Usage so far') ...[
               const DesignIcon('14_6_imgEnergyBolt'),
               const SizedBox(width: 5)
             ],
@@ -72,18 +124,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 12),
           Text(note, style: const TextStyle(fontSize: 10))
         ]));
-    final factor = [1 / 30, 7 / 30, 1.0, 12.0][scale];
     final now = DateTime.now();
-    final period = scale == 2
-        ? DateTime(now.year, now.month + periodOffset)
-        : scale == 3
-            ? DateTime(now.year + periodOffset)
-            : now.add(Duration(days: periodOffset * (scale == 1 ? 7 : 1)));
+    final period = _periodStart(now, scale, periodOffset);
+    final periodEnd = scale == 0 ? period : scale == 1
+        ? period.add(const Duration(days: 6))
+        : scale == 2 ? DateTime(period.year, period.month + 1, 0)
+        : DateTime(period.year, 12, 31);
+    final today = DateTime(now.year, now.month, now.day);
+    final monthStart = DateTime(now.year, now.month);
+    final monthUsage = c.recordedKwh(monthStart, today);
+    final buckets = _periodBuckets(c, scale, period);
+    final firstRecordedDay = <String, DateTime>{};
+    for (final entry in c.dailyUsages) {
+      final day = DateTime(entry.date.year, entry.date.month, entry.date.day);
+      final previous = firstRecordedDay[entry.applianceId];
+      if (previous == null || day.isBefore(previous)) {
+        firstRecordedDay[entry.applianceId] = day;
+      }
+    }
+    final visibleAppliances = c.appliances.where((appliance) {
+      final first = firstRecordedDay[appliance.id];
+      return first == null
+          ? !applianceDate.isBefore(today)
+          : !applianceDate.isBefore(first);
+    }).toList();
     final periodLabel = scale == 2
         ? DateFormat.yMMM().format(period)
-        : scale == 3
-            ? '${period.year}'
-            : DateFormat.MMMd().format(period);
+        : scale == 3 ? '${period.year}'
+        : scale == 1 ? '${DateFormat.MMMd().format(period)} – ${DateFormat.MMMd().format(periodEnd)}'
+        : DateFormat.MMMd().format(period);
     return ListView(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
         children: [
@@ -120,26 +189,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const TextStyle(color: Colors.white, fontFamily: 'Inter'),
                   child: Row(children: [
                     summary(
-                        'Total Usage (This Month)',
-                        '${c.monthlyKwh.toStringAsFixed(1)} kWh',
-                        c.t('Estimated')),
+                        'Usage so far',
+                        '${monthUsage.toStringAsFixed(1)} kWh',
+                        DateFormat.yMMM().format(now)),
                     Container(
                         height: 72,
                         width: 1,
                         color: const Color(0xff79b78e),
                         margin: const EdgeInsets.symmetric(horizontal: 16)),
-                    summary('Total Cost', money(c.monthlyKwh * c.rate),
-                        '${c.t('Estimated')} • ₱${c.rate}/kWh'),
+                    summary('Cost so far', money(monthUsage * c.billRate),
+                        '₱${c.billRate.toStringAsFixed(2)}/kWh • ${c.t('Bill average rate')}'),
                   ]))),
           const SizedBox(height: 6),
           Row(children: [
             Expanded(
-                child: stat('14_6_imgTotalHoursClock', 'Total Hours',
-                    '${c.monthlyHours.toStringAsFixed(1)} hrs')),
-            const SizedBox(width: 10),
-            Expanded(
                 child: stat('14_6_imgConnectedPlug', 'Connected Appliances',
-                    '${c.appliances.fold<int>(0, (n, a) => n + a.quantity)}'))
+                    '${c.appliances.length}'))
           ]),
           const SizedBox(height: 6),
           SurfaceCard(
@@ -189,7 +254,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       .colorScheme
                                       .surfaceContainerLow,
                                   borderRadius: BorderRadius.circular(8)),
-                              child: Text('$periodLabel • ${c.t('Estimated')}',
+                              child: Text('$periodLabel • ${c.t('Recorded')}',
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                       fontSize: 11,
@@ -213,31 +278,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Text('Usage (kWh)',
                                   style: TextStyle(fontSize: 9, color: muted)),
                               const SizedBox(width: 20),
-                              const DesignIcon('14_6_imgCostDataPoint1'),
-                              const SizedBox(width: 5),
-                              Text('Cost (₱)',
-                                  style: TextStyle(fontSize: 9, color: muted))
                             ])),
                     SizedBox(
                         height: 76,
                         child: c.appliances.isEmpty
                             ? Center(
                                 child: Text(
-                                    c.t(
-                                        'Add your first appliance to estimate your usage.'),
+                                    c.t('Add an appliance and enter its daily hours to see recorded usage.'),
                                     textAlign: TextAlign.center,
                                     style:
                                         TextStyle(fontSize: 12, color: muted)))
-                            : CustomPaint(
+                            : buckets.every((value) => value == null)
+                                ? Center(
+                                    child: Text(c.t('No entries recorded for this period.'),
+                                        style: TextStyle(fontSize: 11, color: muted)))
+                                : CustomPaint(
                                 size: const Size(double.infinity, 76),
                                 painter: UsagePainter(
-                                    total: c.monthlyKwh * factor,
-                                    rate: c.rate,
-                                    color: muted,
-                                    scale: scale))),
+                                    values: buckets,
+                                    scale: scale,
+                                    color: muted))),
                     const SizedBox(height: 4),
                     Text(
-                        'Estimate from your current schedule, not meter readings.',
+                        'Only manually entered daily usage is included. Missing days are not counted as zero.',
                         style: TextStyle(fontSize: 9, color: muted)),
                   ])),
           const SizedBox(height: 6),
@@ -266,11 +329,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 style: const TextStyle(fontSize: 10))
                           ]))
                     ]),
+                    Row(children: [
+                      IconButton(
+                          tooltip: c.t('Previous day'),
+                          onPressed: () => setState(() => applianceDayOffset--),
+                          icon: const Icon(Icons.arrow_back_ios_new, size: 16)),
+                      Expanded(
+                          child: Text(DateFormat.yMMMMd().format(applianceDate),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontWeight: FontWeight.w600))),
+                      IconButton(
+                          tooltip: c.t('Next day'),
+                          onPressed: applianceDayOffset >= 0
+                              ? null
+                              : () => setState(() => applianceDayOffset++),
+                          icon: const Icon(Icons.arrow_forward_ios, size: 16)),
+                    ]),
                     const SizedBox(height: 6),
                     if (c.appliances.isEmpty)
                       Padding(
                           padding: const EdgeInsets.symmetric(vertical: 30),
                           child: Center(child: Text(c.t('No appliances yet.'))))
+                    else if (visibleAppliances.isEmpty)
+                      Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 30),
+                          child: Center(
+                              child: Text(c.t('No appliances were recorded by this date.'))))
                     else
                       LayoutBuilder(
                           builder: (context, constraints) =>
@@ -285,28 +369,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               'Appliance',
                                               'Power',
                                               'Hours',
-                                              'Energy',
+                                              'Rate',
                                               'Cost'
                                             ].map(c.t).toList(),
                                             heading: true),
-                                        for (final a in c.appliances)
-                                          InkWell(
+                                        for (final a in visibleAppliances)
+                                          Builder(builder: (context) {
+                                            final entry = c.dailyUsages.where((e) =>
+                                                e.applianceId == a.id &&
+                                                e.date.year == applianceDate.year &&
+                                                e.date.month == applianceDate.month &&
+                                                e.date.day == applianceDate.day).toList();
+                                            final usage = entry.isEmpty ? null : entry.first;
+                                            return InkWell(
                                               onTap: () => edit(a),
                                               child: _row([
                                                 a.name,
                                                 '${a.watts.toStringAsFixed(0)} W',
-                                                '${(a.hoursPerDay * a.daysPerMonth * a.quantity).toStringAsFixed(1)} h',
-                                                '${a.monthlyKwh.toStringAsFixed(1)} kWh',
-                                                money(a.monthlyKwh * c.rate)
-                                              ], appliance: a)),
-                                        _row([
-                                          c.t('Total'),
-                                          '',
-                                          '${c.monthlyHours.toStringAsFixed(1)} h',
-                                          '${c.monthlyKwh.toStringAsFixed(1)} kWh',
-                                          money(c.monthlyKwh * c.rate)
-                                        ], heading: true),
+                                                usage == null ? '—' : '${usage.hours.toStringAsFixed(1)} h',
+                                                '${c.billRate.toStringAsFixed(2)} ₱/kWh',
+                                                usage == null ? '—' : money(usage.kwh * c.billRate)
+                                              ], appliance: a));
+                                          }),
                                       ])))),
+                    if (visibleAppliances.isNotEmpty && !c.hasUsageForDay(applianceDate))
+                      Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(c.t('No entries for this day. Tap an appliance to add its daily use.'),
+                              style: TextStyle(fontSize: 11, color: muted))),
                     TextButton(
                         onPressed: () async {
                           final input =
@@ -409,23 +499,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 class UsagePainter extends CustomPainter {
-  UsagePainter(
-      {required this.total,
-      required this.rate,
-      required this.color,
-      required this.scale});
-  final double total, rate;
+  UsagePainter({required this.values, required this.color, required this.scale});
+  final List<double?> values;
   final Color color;
   final int scale;
   @override
   void paint(Canvas canvas, Size size) {
     final width = size.width - 70, height = size.height - 24;
-    final factors = scale < 2
-        ? [1.0]
-        : scale == 2
-            ? [7 / 30, 7 / 30, 7 / 30, 9 / 30]
-            : [.25, .25, .25, .25];
-    final top = math.max(1.0, total * factors.reduce(math.max) * 1.25);
+    final maxValue = values.fold<double>(0, (current, value) =>
+        value == null ? current : math.max(current, value).toDouble());
+    final top = math.max(1.0, maxValue * 1.25).toDouble();
     void label(String value, Offset at, {bool right = false}) {
       final text = TextPainter(
           text: TextSpan(
@@ -436,20 +519,19 @@ class UsagePainter extends CustomPainter {
       text.paint(canvas, Offset(right ? at.dx - text.width : at.dx, at.dy));
     }
 
-    final points = <Offset>[];
     for (var i = 0; i < 5; i++) {
       final y = height - i * height / 4;
       canvas.drawLine(Offset(30, y), Offset(size.width - 40, y),
           Paint()..color = color.withValues(alpha: .13));
       label((top * i / 4).toStringAsFixed(0), Offset(25, y - 4), right: true);
-      label((top * i / 4 * rate).toStringAsFixed(0),
-          Offset(size.width - 35, y - 4));
     }
-    for (var i = 0; i < factors.length; i++) {
-      final value = total * factors[i],
-          x = 30 + width * (i + .5) / factors.length;
-      final bar = Rect.fromLTWH(
-          x - 16, height - value / top * height, 32, value / top * height);
+    for (var i = 0; i < values.length; i++) {
+      final value = values[i];
+      if (value == null) continue;
+      final x = 30 + width * (i + .5) / values.length;
+      final barWidth = math.min(32.0, width / values.length * .65).toDouble();
+      final bar = Rect.fromLTWH(x - barWidth / 2,
+          height - value / top * height, barWidth, value / top * height);
       canvas.drawRRect(
           RRect.fromRectAndRadius(bar, const Radius.circular(3)),
           Paint()
@@ -458,37 +540,23 @@ class UsagePainter extends CustomPainter {
                     end: Alignment.bottomCenter,
                     colors: [Color(0xff6ac778), green])
                 .createShader(Rect.fromLTWH(0, 0, size.width, height)));
-      points.add(Offset(x, bar.top));
+      if (value == 0) {
+        canvas.drawCircle(Offset(x, height), 2, Paint()..color = green);
+      }
       final text = scale == 0
           ? 'Day'
           : scale == 1
-              ? 'Week'
+              ? DateFormat.E().format(DateTime(2020, 1, 6 + i))
               : scale == 2
-                  ? 'Week ${i + 1}'
-                  : 'Q${i + 1}';
+                  ? 'W${i + 1}'
+                  : DateFormat.MMM().format(DateTime(2020, i + 1));
       label(text, Offset(x - 14, height + 8));
-    }
-    if (rate > 0) {
-      final path = Path()..moveTo(points.first.dx, points.first.dy);
-      for (final p in points.skip(1)) {
-        path.lineTo(p.dx, p.dy);
-      }
-      canvas.drawPath(
-          path,
-          Paint()
-            ..color = const Color(0xff8cbe32)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2);
-      for (final p in points) {
-        canvas.drawCircle(p, 3, Paint()..color = const Color(0xff8cbe32));
-      }
     }
   }
 
   @override
   bool shouldRepaint(UsagePainter old) =>
-      old.total != total ||
+      old.values != values ||
       old.scale != scale ||
-      old.rate != rate ||
       old.color != color;
 }

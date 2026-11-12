@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../contracts/repositories.dart';
 import '../models/appliance.dart';
+import '../models/daily_usage.dart';
 import 'sqlite_bill_repository.dart';
 
 class SqliteApplianceRepository implements ApplianceRepository {
@@ -12,7 +13,7 @@ class SqliteApplianceRepository implements ApplianceRepository {
   static Future<SqliteApplianceRepository> open() async {
     final database = await openDatabase(
       p.join(await getDatabasesPath(), 'wattwise.db'),
-      version: 2,
+      version: 4,
       onCreate: (db, version) async {
         await db.execute(
           'CREATE TABLE appliances (id TEXT PRIMARY KEY, '
@@ -20,9 +21,27 @@ class SqliteApplianceRepository implements ApplianceRepository {
           'days_per_month INTEGER NOT NULL, quantity INTEGER NOT NULL)',
         );
         await SqliteBillRepository.createTables(db);
+        await db.execute(
+          'CREATE TABLE daily_usage (appliance_id TEXT NOT NULL, date TEXT NOT NULL, '
+          'hours REAL NOT NULL, watts REAL NOT NULL, quantity INTEGER NOT NULL, '
+          'PRIMARY KEY (appliance_id, date))',
+        );
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) await SqliteBillRepository.createTables(db);
+        if (oldVersion < 3) {
+          await db.execute(
+            'CREATE TABLE daily_usage (appliance_id TEXT NOT NULL, date TEXT NOT NULL, '
+            'hours REAL NOT NULL, PRIMARY KEY (appliance_id, date))',
+          );
+        }
+        if (oldVersion < 4) {
+          await db.execute('ALTER TABLE daily_usage ADD COLUMN watts REAL NOT NULL DEFAULT 0');
+          await db.execute('ALTER TABLE daily_usage ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1');
+          await db.execute(
+              'UPDATE daily_usage SET watts = COALESCE((SELECT watts FROM appliances WHERE appliances.id = daily_usage.appliance_id), 0), '
+              'quantity = COALESCE((SELECT quantity FROM appliances WHERE appliances.id = daily_usage.appliance_id), 1)');
+        }
       },
     );
     return SqliteApplianceRepository(database);
@@ -48,7 +67,77 @@ class SqliteApplianceRepository implements ApplianceRepository {
   @override
   Future<void> remove(String id) async {
     await database.delete('appliances', where: 'id = ?', whereArgs: [id]);
+    await database.delete('daily_usage', where: 'appliance_id = ?', whereArgs: [id]);
   }
 
   Future<void> close() => database.close();
+}
+
+class SqliteDailyUsageRepository implements DailyUsageRepository {
+  const SqliteDailyUsageRepository(this.database);
+  final Database database;
+
+  @override
+  Future<List<DailyUsage>> list({DateTime? from, DateTime? through}) async {
+    final clauses = <String>[];
+    final args = <Object?>[];
+    if (from != null) {
+      clauses.add('date >= ?');
+      args.add(_key(from));
+    }
+    if (through != null) {
+      clauses.add('date <= ?');
+      args.add(_key(through));
+    }
+    final rows = await database.query('daily_usage',
+        where: clauses.isEmpty ? null : clauses.join(' AND '),
+        whereArgs: clauses.isEmpty ? null : args,
+        orderBy: 'date, appliance_id');
+    return rows
+        .map((row) => DailyUsage(
+              applianceId: row['appliance_id'] as String,
+              date: DateTime.parse(row['date'] as String),
+              hours: (row['hours'] as num).toDouble(),
+              watts: (row['watts'] as num).toDouble(),
+              quantity: row['quantity'] as int,
+            ))
+        .toList();
+  }
+
+  String _key(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+  @override
+  Future<void> saveAll(List<DailyUsage> entries) async {
+    for (final entry in entries) {
+      if (!entry.hours.isFinite || entry.hours < 0 || entry.hours > 24) {
+        throw ArgumentError('Daily usage must be between 0 and 24 hours');
+      }
+      if (!entry.watts.isFinite || entry.watts < 0 || entry.quantity < 1) {
+        throw ArgumentError('Invalid appliance details for daily usage');
+      }
+    }
+    await database.transaction((txn) async {
+      final batch = txn.batch();
+      for (final entry in entries) {
+        batch.insert(
+            'daily_usage',
+            {
+              'appliance_id': entry.applianceId,
+              'date': entry.dateKey,
+              'hours': entry.hours,
+              'watts': entry.watts,
+              'quantity': entry.quantity,
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
+  @override
+  Future<void> removeForAppliance(String applianceId) async {
+    await database
+        .delete('daily_usage', where: 'appliance_id = ?', whereArgs: [applianceId]);
+  }
 }

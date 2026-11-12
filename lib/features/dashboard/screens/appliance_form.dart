@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../app/app_controller.dart';
 import '../../../shared/components/design_widgets.dart';
 import '../../../shared/models/appliance.dart';
+import '../../../shared/models/daily_usage.dart';
 import '../../../shared/theme/wattwise_theme.dart';
+import '../models/appliance_catalog_item.dart';
+import '../services/appliance_catalog_repository.dart';
 
 class ApplianceForm extends StatefulWidget {
-  const ApplianceForm({super.key, required this.controller, this.appliance});
+  const ApplianceForm(
+      {super.key, required this.controller, this.appliance, this.usageDate});
   final AppController controller;
   final Appliance? appliance;
+  final DateTime? usageDate;
   @override
   State<ApplianceForm> createState() => _ApplianceFormState();
 }
 
 class _ApplianceFormState extends State<ApplianceForm> {
   final _form = GlobalKey<FormState>();
-  late final TextEditingController name, watts, hours, days, quantity;
+  final _catalog = ApplianceCatalogRepository();
+  late final TextEditingController name, watts, days, dailyHours;
   bool busy = false;
   @override
   void initState() {
@@ -22,14 +29,22 @@ class _ApplianceFormState extends State<ApplianceForm> {
     final a = widget.appliance;
     name = TextEditingController(text: a?.name);
     watts = TextEditingController(text: a?.watts.toString() ?? '');
-    hours = TextEditingController(text: a?.hoursPerDay.toString() ?? '');
     days = TextEditingController(text: '${a?.daysPerMonth ?? 30}');
-    quantity = TextEditingController(text: '${a?.quantity ?? 1}');
+    final date = widget.usageDate ?? DateTime.now();
+    final entries = a == null
+        ? <DailyUsage>[]
+        : widget.controller.dailyUsages.where((e) =>
+            e.applianceId == a.id &&
+            e.date.year == date.year &&
+            e.date.month == date.month &&
+            e.date.day == date.day).toList();
+    dailyHours = TextEditingController(
+        text: entries.isEmpty ? '' : entries.first.hours.toString());
   }
 
   @override
   void dispose() {
-    for (final c in [name, watts, hours, days, quantity]) {
+    for (final c in [name, watts, days, dailyHours]) {
       c.dispose();
     }
     super.dispose();
@@ -39,14 +54,23 @@ class _ApplianceFormState extends State<ApplianceForm> {
     if (busy || !_form.currentState!.validate()) return;
     setState(() => busy = true);
     try {
-      await widget.controller.saveAppliance(Appliance(
-          id: widget.appliance?.id ??
-              DateTime.now().microsecondsSinceEpoch.toString(),
+      final appliance = Appliance(
+          id: widget.appliance?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
           name: name.text.trim(),
           watts: double.parse(watts.text),
-          hoursPerDay: double.parse(hours.text),
+          hoursPerDay: double.parse(dailyHours.text),
           daysPerMonth: int.parse(days.text),
-          quantity: int.parse(quantity.text)));
+          quantity: widget.appliance?.quantity ?? 1);
+      await widget.controller.saveAppliance(appliance);
+      final date = widget.usageDate ?? DateTime.now();
+      await widget.controller.saveDailyUsages([
+        DailyUsage(
+            applianceId: appliance.id,
+            date: date,
+            hours: double.parse(dailyHours.text),
+            watts: appliance.watts,
+            quantity: appliance.quantity)
+      ]);
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) showFailure(context, e);
@@ -58,10 +82,8 @@ class _ApplianceFormState extends State<ApplianceForm> {
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
-    final daily = (double.tryParse(watts.text) ?? 0) *
-        (double.tryParse(hours.text) ?? 0) *
-        (int.tryParse(quantity.text) ?? 1) /
-        1000;
+    final dailyEstimate = (double.tryParse(watts.text) ?? 0) *
+        (double.tryParse(dailyHours.text) ?? 0) / 1000;
     Widget field(String label, TextEditingController input, String asset,
             {String? unit, double? max, bool integer = false}) =>
         Padding(
@@ -93,7 +115,7 @@ class _ApplianceFormState extends State<ApplianceForm> {
                     final n = double.tryParse(v ?? '');
                     if (n == null ||
                         !n.isFinite ||
-                        n < (label == 'Quantity' ? 1 : 0) ||
+                        n < 0 ||
                         (max != null && n > max) ||
                         (integer && int.tryParse(v ?? '') == null)) {
                       return 'Enter a valid ${integer ? 'whole ' : ''}number${max == null ? '' : ' up to $max'}';
@@ -101,6 +123,84 @@ class _ApplianceFormState extends State<ApplianceForm> {
                     return null;
                   })
             ]));
+    Widget applianceNameInput() {
+      if (widget.appliance != null) {
+        return field('Appliance name', name, '44_41_imgFan');
+      }
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(c.t('Appliance name'),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 10),
+        Autocomplete<ApplianceCatalogItem>(
+          initialValue: TextEditingValue(text: name.text),
+          displayStringForOption: (option) => option.name,
+          optionsBuilder: (value) async {
+            final query = value.text.trim();
+            if (query.length < 2) return const <ApplianceCatalogItem>[];
+            final results = await _catalog.search(query);
+            return [...results, ApplianceCatalogItem.custom(query)];
+          },
+          onSelected: (option) {
+            name.text = option.name;
+            if (option.isCustom || option.watts == null) {
+              watts.clear();
+            } else {
+              watts.text = option.watts!.toStringAsFixed(
+                  option.watts! == option.watts!.roundToDouble() ? 0 : 2);
+            }
+            setState(() {});
+          },
+          fieldViewBuilder: (context, input, focusNode, onFieldSubmitted) =>
+              TextFormField(
+            controller: input,
+            focusNode: focusNode,
+            enabled: !busy,
+            onChanged: (value) => name.text = value,
+            decoration: InputDecoration(
+              prefixIcon: const Padding(
+                padding: EdgeInsets.all(12),
+                child: DesignIcon('44_41_imgFan'),
+              ),
+              hintText: c.t('Search appliances or enter a custom name'),
+            ),
+            validator: (value) => value == null || value.trim().isEmpty
+                ? c.t('Enter a name')
+                : null,
+            onFieldSubmitted: (_) => onFieldSubmitted(),
+          ),
+          optionsViewBuilder: (context, onSelected, options) => Align(
+            alignment: Alignment.topLeft,
+            child: Material(
+              elevation: 6,
+              borderRadius: BorderRadius.circular(12),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 300, maxWidth: 560),
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  children: options.map((option) {
+                    final subtitle = option.isCustom
+                        ? c.t('Enter wattage manually')
+                        : option.watts == null
+                            ? c.t('Wattage unavailable — enter it manually')
+                            : '${option.watts!.toStringAsFixed(option.watts! == option.watts!.roundToDouble() ? 0 : 2)} W';
+                    return ListTile(
+                      dense: true,
+                      title: Text(option.isCustom
+                          ? '${c.t('Use custom appliance')}: ${option.name}'
+                          : option.name),
+                      subtitle: Text(subtitle),
+                      onTap: () => onSelected(option),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+      ]);
+    }
     return Scaffold(
         backgroundColor: c.dark ? null : const Color(0xffeffcf0),
         appBar: AppBar(
@@ -126,25 +226,16 @@ class _ApplianceFormState extends State<ApplianceForm> {
                         ListView(padding: const EdgeInsets.all(20), children: [
                       Text(c.t(
                           'Enter your appliance details to track energy use.')),
+                      Text(c.t(
+                          'Daily entry for ${DateFormat.yMMMMd().format(widget.usageDate ?? DateTime.now())}')),
                       const SizedBox(height: 32),
-                      field('Appliance name', name, '44_41_imgFan'),
-                      field('Power rating', watts, '44_41_imgPower',
+                      applianceNameInput(),
+                      field('Power rating (Wattage)', watts, '44_41_imgPower',
                           unit: 'W', max: 1000000),
-                      field('Average daily use', hours, '44_41_imgClock',
-                          unit: 'hrs/day', max: 24),
-                      Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                                child: field(
-                                    'Days per month', days, '44_41_imgClock',
-                                    unit: 'days', max: 31, integer: true)),
-                            const SizedBox(width: 12),
-                            Expanded(
-                                child: field(
-                                    'Quantity', quantity, '44_41_imgPlug',
-                                    unit: 'pcs', max: 10000, integer: true))
-                          ]),
+                      field('Hours used per day', dailyHours, '44_41_imgClock',
+                          unit: 'hours', max: 24),
+                      field('Days per month', days, '44_41_imgClock',
+                          unit: 'days', max: 31, integer: true),
                       SurfaceCard(
                           color: c.dark ? null : paleGreen,
                           child: Row(children: [
@@ -159,11 +250,12 @@ class _ApplianceFormState extends State<ApplianceForm> {
                                       style: const TextStyle(
                                           fontWeight: FontWeight.w600)),
                                   Text(
-                                      '${daily.isFinite ? daily.toStringAsFixed(2) : '—'} kWh',
+                                      '${dailyEstimate.isFinite ? dailyEstimate.toStringAsFixed(2) : '—'} kWh',
                                       style: const TextStyle(
                                           fontSize: 28,
                                           fontWeight: FontWeight.w700)),
-                                  Text(c.t('Based on wattage and daily hours.'),
+                                  Text(c.t(
+                                      'Based on wattage and hours used per day.'),
                                       style: const TextStyle(fontSize: 12))
                                 ]))
                           ])),
