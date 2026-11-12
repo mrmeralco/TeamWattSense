@@ -11,6 +11,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.widget.Toast
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugin.common.MethodChannel
@@ -69,6 +70,10 @@ class MainActivity : FlutterActivity() {
             maybeNotifyUsageComparison(
                 getSharedPreferences(WIDGET_PREFERENCES, Context.MODE_PRIVATE)
             )
+        } else if (requestCode == NOTIFICATION_PERMISSION_REQUEST) {
+            val preferences = getSharedPreferences(WIDGET_PREFERENCES, Context.MODE_PRIVATE)
+            val date = preferences.getString("todayDate", "") ?: ""
+            showNotificationPermissionHint(preferences, date)
         }
     }
 
@@ -89,31 +94,41 @@ class MainActivity : FlutterActivity() {
 
         val todayKwh = preferences.getFloat("todayKwh", 0f).toDouble()
         val yesterdayKwh = preferences.getFloat("yesterdayKwh", 0f).toDouble()
-        if (yesterdayKwh <= 0 || todayKwh <= yesterdayKwh) return
-        if (preferences.getString("usageAlertDate", "") == todayKey) return
+        if (yesterdayKwh <= 0 || todayKwh < yesterdayKwh * USAGE_ALERT_THRESHOLD) return
+        if (preferences.getString("usageAlert80Date", "") == todayKey) return
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
-            if (!preferences.getBoolean("notificationPermissionRequested", false)) {
-                preferences.edit().putBoolean("notificationPermissionRequested", true).apply()
+            if (!preferences.getBoolean("notificationPermissionRequested80", false)) {
+                preferences.edit().putBoolean("notificationPermissionRequested80", true).apply()
                 requestPermissions(
                     arrayOf(Manifest.permission.POST_NOTIFICATIONS),
                     NOTIFICATION_PERMISSION_REQUEST
                 )
+            } else {
+                showNotificationPermissionHint(preferences, todayKey)
             }
             return
         }
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
+            !notificationManager.areNotificationsEnabled()
+        ) {
+            showNotificationPermissionHint(preferences, todayKey)
+            return
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             notificationManager.createNotificationChannel(
                 NotificationChannel(
                     USAGE_NOTIFICATION_CHANNEL,
-                    "Energy usage alerts",
-                    NotificationManager.IMPORTANCE_DEFAULT
-                )
+                    "80% energy usage warnings",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Warns when today’s estimated energy use reaches 80% of yesterday’s total"
+                }
             )
         }
         val intent = Intent(this, MainActivity::class.java).apply {
@@ -125,8 +140,8 @@ class MainActivity : FlutterActivity() {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val title = "Today’s usage is beyond yesterday’s total"
-        val body = "Today: ${preferences.getString("todayTotal", "—")} • Yesterday: ${preferences.getString("yesterdayTotal", "—")}"
+        val title = "80% of yesterday’s energy used"
+        val body = "Your saved appliance-use estimate has reached at least 80% of yesterday’s energy. Today: ${preferences.getString("todayTotal", "—")} • Yesterday: ${preferences.getString("yesterdayTotal", "—")}. Conserve power to stay below yesterday’s total."
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, USAGE_NOTIFICATION_CHANNEL)
         } else {
@@ -138,17 +153,33 @@ class MainActivity : FlutterActivity() {
             .setContentText(body)
             .setStyle(Notification.BigTextStyle().bigText(body))
             .setContentIntent(pendingIntent)
+            .setPriority(Notification.PRIORITY_HIGH)
+            .setCategory(Notification.CATEGORY_STATUS)
             .setAutoCancel(true)
             .build()
         notificationManager.notify(USAGE_NOTIFICATION_ID, notification)
-        preferences.edit().putString("usageAlertDate", todayKey).apply()
+        preferences.edit().putString("usageAlert80Date", todayKey).apply()
+    }
+
+    private fun showNotificationPermissionHint(
+        preferences: android.content.SharedPreferences,
+        todayKey: String
+    ) {
+        if (preferences.getString("notificationPermissionHintDate", "") == todayKey) return
+        Toast.makeText(
+            this,
+            "Enable WattWise notifications to receive the 80% energy warning.",
+            Toast.LENGTH_LONG
+        ).show()
+        preferences.edit().putString("notificationPermissionHintDate", todayKey).apply()
     }
 
     companion object {
         const val WIDGET_CHANNEL = "com.example.wattwise/widget"
         const val WIDGET_PREFERENCES = "wattwise_widget"
         private const val NOTIFICATION_PERMISSION_REQUEST = 731
-        private const val USAGE_NOTIFICATION_CHANNEL = "energy_usage_comparison"
-        private const val USAGE_NOTIFICATION_ID = 731
+        private const val USAGE_NOTIFICATION_CHANNEL = "energy_usage_80_warning_v1"
+        private const val USAGE_NOTIFICATION_ID = 732
+        private const val USAGE_ALERT_THRESHOLD = 0.8
     }
 }
