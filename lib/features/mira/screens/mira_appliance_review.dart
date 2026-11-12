@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../app/app_controller.dart';
 import '../../../shared/models/appliance.dart';
+import '../../../shared/models/daily_usage.dart';
 import '../services/mira_appliance_action.dart';
 
 class MiraApplianceReview extends StatefulWidget {
@@ -16,6 +17,8 @@ class MiraApplianceReview extends StatefulWidget {
 class _MiraApplianceReviewState extends State<MiraApplianceReview> {
   final form = GlobalKey<FormState>();
   late final Map<String, TextEditingController> fields;
+  late final String newId = DateTime.now().microsecondsSinceEpoch.toString();
+  final usageDate = DateTime.now();
   bool saving = false;
   String? error;
   @override
@@ -65,16 +68,40 @@ class _MiraApplianceReviewState extends State<MiraApplianceReview> {
       };
       final validated = MiraApplianceAction.parse(values, inventory);
       final a = Appliance(
-          id: original?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+          id: original?.id ?? newId,
           name: validated.values['name'] as String,
           watts: values['watts'] as double,
           hoursPerDay: values['hours_per_day'] as double,
           daysPerMonth: values['days_per_month'] as int,
           quantity: values['quantity'] as int);
+      if (widget.controller.dailyUsageRepository == null) {
+        throw StateError('Daily usage storage is unavailable');
+      }
+      final dateKey =
+          '${usageDate.year.toString().padLeft(4, '0')}-${usageDate.month.toString().padLeft(2, '0')}-${usageDate.day.toString().padLeft(2, '0')}';
+      final session = widget.controller.popUsageSessions['${a.id}:$dateKey'];
+      if (session != null) {
+        final recordedHours =
+            session['stop']!.difference(session['start']!).inMinutes / 60;
+        if ((recordedHours - a.hoursPerDay).abs() > .01) {
+          throw const FormatException(
+              'This entry has POP on/off times. Change its times in Dashboard to update the hours consistently. Nothing was changed.');
+        }
+      }
       await widget.controller.saveAppliance(a);
+      {
+        await widget.controller.saveDailyUsages([
+          DailyUsage(
+              applianceId: a.id,
+              date: usageDate,
+              hours: a.hoursPerDay,
+              watts: a.watts,
+              quantity: a.quantity)
+        ]);
+      }
       if (mounted) {
         Navigator.pop(context,
-            '${original == null ? 'Added' : 'Updated'} ${a.quantity} × ${a.name}: ${a.watts} W each, ${a.hoursPerDay} hours/day.');
+            '${original == null ? 'Added' : 'Updated'} ${a.quantity} × ${a.name}: ${a.watts} W each, ${a.hoursPerDay} hours/day. Recorded for today (${usageDate.year}-${usageDate.month}-${usageDate.day}); view today in Dashboard. Earlier daily usage is unchanged.');
       }
     } catch (e) {
       if (mounted) {
@@ -100,8 +127,9 @@ class _MiraApplianceReviewState extends State<MiraApplianceReview> {
                 key: form,
                 child: SingleChildScrollView(
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Text(
-                      'Check the details before saving. Hours are your usual daily estimate; this does not change recorded daily usage.'),
+                  Text(widget.action.original == null
+                      ? 'Saving adds this appliance and records these hours for today. Earlier days are unchanged. For POP timing, edit today’s entry in Dashboard to enter on/off times.'
+                      : 'Check the details before saving. This updates the appliance and today’s recorded hours, wattage, and quantity. Earlier daily usage stays unchanged.'),
                   if (widget.action.original != null)
                     Text(
                         'Current: ${widget.action.original!.quantity} × ${widget.action.original!.name}, ${widget.action.original!.watts} W, ${widget.action.original!.hoursPerDay} h/day.'),
@@ -119,7 +147,7 @@ class _MiraApplianceReviewState extends State<MiraApplianceReview> {
                                 labelText: {
                               'name': 'Appliance name',
                               'watts': 'Watts per appliance',
-                              'hours_per_day': 'Usual hours per day',
+                              'hours_per_day': 'Hours used today',
                               'quantity': 'Quantity'
                             }[e.key]),
                             validator: (v) {

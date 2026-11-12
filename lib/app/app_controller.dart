@@ -199,6 +199,9 @@ class AppController extends ChangeNotifier {
   Future<void> _reloadKLoad() async {
     final db = database;
     if (db == null) return;
+    popTransitions =
+        await db.query('pop_transitions', orderBy: 'effective_date');
+    pop = popForDate(DateTime.now());
     kloadTransitions =
         await db.query('kload_transitions', orderBy: 'effective_date');
     kloadRates = await db.query('kload_rates', orderBy: 'effective_date');
@@ -218,6 +221,18 @@ class AppController extends ChangeNotifier {
     final key =
         '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
     await db.transaction((tx) async {
+      if (enabled) {
+        await tx.delete('kload_transitions',
+            where: 'effective_date > ?', whereArgs: [key]);
+        await tx.insert(
+            'kload_transitions',
+            {
+              'effective_date': key,
+              'enabled': 0,
+              'recorded_at': DateTime.now().toIso8601String()
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace);
+      }
       if (effectiveDate == null) {
         await tx.delete('pop_transitions',
             where: 'effective_date > ?', whereArgs: [key]);
@@ -234,6 +249,8 @@ class AppController extends ChangeNotifier {
     popTransitions =
         await db.query('pop_transitions', orderBy: 'effective_date');
     pop = popForDate(DateTime.now());
+    kloadTransitions =
+        await db.query('kload_transitions', orderBy: 'effective_date');
     notifyListeners();
     onLocalChange?.call();
   }

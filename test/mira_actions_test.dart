@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wattwise/app/app_controller.dart';
 import 'package:wattwise/shared/storage/memory_repositories.dart';
 import 'package:wattwise/shared/models/appliance.dart';
+import 'package:wattwise/shared/models/daily_usage.dart';
 import 'package:wattwise/features/mira/services/mira_appliance_action.dart';
 import 'package:wattwise/features/mira/screens/mira_appliance_review.dart';
 
@@ -75,7 +76,8 @@ void main() {
       (tester) async {
     final c = AppController(
         applianceRepository: MemoryApplianceRepository(),
-        billRepository: MemoryBillRepository());
+        billRepository: MemoryBillRepository(),
+        dailyUsageRepository: MemoryDailyUsageRepository());
     final action = MiraApplianceAction.parse({
       'mode': 'add',
       'name': 'Fan',
@@ -97,22 +99,58 @@ void main() {
     expect(c.appliances.single.quantity, 2);
     expect(c.appliances.single.daysPerMonth, 30);
     expect((await c.applianceRepository.list()).length, 1);
-    expect(c.dailyUsages, isEmpty);
+    expect(c.dailyUsages, hasLength(1));
+    expect(c.dailyUsages.single.kwh, closeTo(.96, 1e-9));
+    expect(
+        c.appliancesForDate(DateTime.now()).single.id, c.appliances.single.id);
+    expect(
+        c.appliancesForDate(DateTime.now().subtract(const Duration(days: 1))),
+        isEmpty);
+    await c.load();
+    expect(c.appliancesForDate(DateTime.now()), hasLength(1));
   });
   testWidgets(
       'Edit saves existing ID; stale edit cannot overwrite changed values',
       (tester) async {
     final c = AppController(
         applianceRepository: MemoryApplianceRepository(),
-        billRepository: MemoryBillRepository());
+        billRepository: MemoryBillRepository(),
+        dailyUsageRepository: MemoryDailyUsageRepository());
     await c.saveAppliance(fan);
-    var action = MiraApplianceAction.parse(
-        {'mode': 'edit', 'applianceId': 'fan', 'quantity': 3}, [fan]);
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    await c.saveDailyUsages([
+      DailyUsage(
+          applianceId: fan.id,
+          date: yesterday,
+          hours: 8,
+          watts: 60,
+          quantity: 2),
+      DailyUsage(
+          applianceId: fan.id,
+          date: DateTime.now(),
+          hours: 8,
+          watts: 60,
+          quantity: 2),
+    ]);
+    var action = MiraApplianceAction.parse({
+      'mode': 'edit',
+      'applianceId': 'fan',
+      'quantity': 3,
+      'watts': 100,
+      'hours_per_day': 4
+    }, [
+      fan
+    ]);
     await open(tester, c, action);
     await tester.tap(find.text('Save appliance'));
     await tester.pumpAndSettle();
     expect(c.appliances.single.id, 'fan');
     expect(c.appliances.single.quantity, 3);
+    expect(c.recordedKwhForDay(DateTime.now()), closeTo(1.2, 1e-9));
+    expect(c.recordedKwhForDay(yesterday), closeTo(.96, 1e-9));
+    await c.load();
+    expect(c.recordedKwhForDay(DateTime.now()), closeTo(1.2, 1e-9));
+    expect(c.appliancesForDate(DateTime.now()).single.watts, 100);
     action = MiraApplianceAction.parse(
         {'mode': 'edit', 'applianceId': 'fan', 'quantity': 4}, [fan]);
     await open(tester, c, action);

@@ -48,7 +48,7 @@ class SettingsScreen extends StatelessWidget {
           title: Text(
               c.t(value ? 'Enable POP estimates?' : 'Disable POP estimates?')),
           content: Text(c.t(
-              'This applies today (${applies.month}/${applies.day}/${applies.year}). POP entries use turned-on and turned-off times to split usage into peak and off-peak hours. Existing usage is kept; entries without times cannot be split automatically.')),
+              'This applies today (${applies.month}/${applies.day}/${applies.year}). Enabling POP turns off KLoad. POP entries use turned-on and turned-off times to split usage into peak and off-peak hours. Existing usage is kept; entries without times cannot be split automatically.')),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -340,7 +340,7 @@ class SettingsScreen extends StatelessWidget {
                 ]),
                 Text(
                     c.t(
-                        'Starts or stops immediately. KLoad is separate from POP; switching modes keeps your appliance history.'),
+                        'Starts or stops immediately. Enabling KLoad turns off POP; switching modes keeps your appliance history.'),
                     style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant)),

@@ -69,6 +69,11 @@ class KLoadService {
     final key = dateKey(effective);
     final now = DateTime.now().toIso8601String();
     await database.transaction((txn) async {
+      await txn.delete('pop_transitions',
+          where: 'effective_date > ?', whereArgs: [key]);
+      await txn.insert('pop_transitions',
+          {'effective_date': key, 'enabled': 0, 'recorded_at': now},
+          conflictAlgorithm: ConflictAlgorithm.replace);
       // Mode changes apply now. Remove any old queued transitions so they
       // cannot unexpectedly switch the dashboard again on a later date.
       await txn.delete('kload_transitions',
