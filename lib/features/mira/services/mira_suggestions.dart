@@ -1,3 +1,4 @@
+import 'pop_advice.dart';
 import '../../../shared/models/appliance.dart';
 import '../../../shared/models/daily_usage.dart';
 import '../../../shared/models/bill.dart';
@@ -9,8 +10,11 @@ List<String> miraSuggestions(
   final end = DateTime(today.year, today.month, today.day);
   final start = end.subtract(const Duration(days: 29));
   final fil = language == 'fil';
+  final pop = assessPop(bills, now: today);
+  final popPrompts = [if (pop.suggest) fil ? popQuestionFil : popQuestion];
   if (appliances.isEmpty) {
     return [
+      ...popPrompts,
       fil
           ? 'Paano magdagdag ng appliances sa WattWise?'
           : 'How do I add appliances in WattWise?',
@@ -51,6 +55,7 @@ List<String> miraSuggestions(
   final top = ranked.first;
   final units = appliances.fold<int>(0, (s, a) => s + a.quantity);
   return [
+    ...popPrompts,
     fil
         ? 'Paano makatipid sa ${top.quantity} ${top.name} ko (${(hasLogs ? top.logged : top.estimate).toStringAsFixed(1)} kWh, ${hasLogs ? 'naka-log sa 30 araw' : 'buwanang estimate'})?'
         : 'How can I save electricity with my ${top.quantity} ${top.name} (${(hasLogs ? top.logged : top.estimate).toStringAsFixed(1)} kWh ${hasLogs ? 'logged in 30 days' : 'monthly estimate'})?',

@@ -1,3 +1,4 @@
+import 'pop_advice.dart';
 import '../../../shared/contracts/repositories.dart';
 
 class MiraContextProvider {
@@ -66,8 +67,8 @@ class MiraContextProvider {
       ],
       'language': language,
       'registeredInMeralcoPop': registeredPop,
-      'popNote':
-          'Self-reported enrollment only. Peak hours and rates are unknown; do not assume a discount.',
+      'popAdvice': assessPop(reviewed, registered: registeredPop)
+          .text(language: language),
       'estimatedRatePerKwh': rate,
       'appliances': items
           .map(
