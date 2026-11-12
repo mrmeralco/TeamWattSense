@@ -1,3 +1,4 @@
+import '../services/pop_advice.dart';
 import '../../../app/app_controller.dart';
 import 'mira_appliance_review.dart';
 import '../services/mira_policy.dart';
@@ -176,6 +177,25 @@ class _MiraScreenState extends State<MiraScreen> {
             Text(t(
                 'Let’s make your energy use smarter. Ask me about your bill or ways to save.'))
           ])),
+          if (assessPop(widget.controller.bills,
+                  registered: widget.registeredPop)
+              .suggest)
+            bubble(Material(
+                color: Colors.transparent,
+                child: ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: Text(widget.language == 'fil'
+                      ? 'Alam mo ba? Suriin ang Meralco POP'
+                      : 'Did you know? Check Meralco POP'),
+                  subtitle: Text(widget.language == 'fil'
+                      ? 'Batay sa iyong na-review na bills'
+                      : 'Based on your reviewed bills'),
+                  children: [
+                    SelectableText(assessPop(widget.controller.bills,
+                            registered: widget.registeredPop)
+                        .text(language: widget.language))
+                  ],
+                ))),
           if (widget.service == null)
             bubble(Text(widget.unavailableReason ??
                 'Mira is unavailable. Please check Firebase setup.')),
