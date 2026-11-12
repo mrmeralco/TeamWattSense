@@ -97,48 +97,57 @@ class _KLoadDashboardScreenState extends State<KLoadDashboardScreen> {
   Future<void> _updateRate() async {
     final input = TextEditingController();
     final form = GlobalKey<FormState>();
+    ModalRoute<dynamic>? dialogRoute;
     final result = await showDialog<double>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Update KLoad rate'),
-        content: Form(
-          key: form,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextFormField(
-              controller: input,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Rate (₱/kWh)'),
-              validator: (value) {
-                final parsed = double.tryParse(value ?? '');
-                return parsed == null ||
-                        !parsed.isFinite ||
-                        parsed < 0 ||
-                        parsed > 10000
-                    ? 'Enter a valid rate'
-                    : null;
-              },
-            ),
-            const SizedBox(height: 6),
-            const Text(
-                'This rate takes effect tomorrow. Earlier entries keep their saved rate period.',
-                style: TextStyle(fontSize: 12)),
-          ]),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () {
-                if (form.currentState!.validate()) {
-                  Navigator.pop(context, double.parse(input.text));
-                }
-              },
-              child: const Text('Save rate')),
-        ],
-      ),
+      builder: (dialogContext) {
+        dialogRoute = ModalRoute.of(dialogContext);
+        return AlertDialog(
+          title: const Text('Update KLoad rate'),
+          content: Form(
+            key: form,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextFormField(
+                controller: input,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Rate (₱/kWh)'),
+                validator: (value) {
+                  final parsed = double.tryParse(value ?? '');
+                  return parsed == null ||
+                          !parsed.isFinite ||
+                          parsed < 0 ||
+                          parsed > 10000
+                      ? 'Enter a valid rate'
+                      : null;
+                },
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                  'This rate takes effect tomorrow. Earlier entries keep their saved rate period.',
+                  style: TextStyle(fontSize: 12)),
+            ]),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () {
+                  FocusScope.of(dialogContext).unfocus();
+                  Navigator.pop(dialogContext);
+                },
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () {
+                  if (form.currentState!.validate()) {
+                    FocusScope.of(dialogContext).unfocus();
+                    Navigator.pop(dialogContext, double.parse(input.text));
+                  }
+                },
+                child: const Text('Save rate')),
+          ],
+        );
+      },
     );
+    await dialogRoute?.completed;
     input.dispose();
     if (result == null || !mounted) return;
     try {
