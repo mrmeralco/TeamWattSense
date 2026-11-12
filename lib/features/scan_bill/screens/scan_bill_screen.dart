@@ -36,13 +36,20 @@ class _ScanBillScreenState extends State<ScanBillScreen> {
       NumberFormat.currency(locale: 'en_PH', symbol: '₱').format(n);
 
   Future<void> showBillArchive(List<Bill> bills) async {
-    final archivedBills = bills.toList()
+    var archivedBills = bills.toList()
       ..sort((a, b) => b.periodEnd.compareTo(a.periodEnd));
+    final selectedBills = archivedBills.where((bill) => bill.id == selectedId);
+    final activeBillId = selectedBills.isNotEmpty
+        ? selectedBills.first.id
+        : archivedBills.isEmpty
+            ? null
+            : archivedBills.first.id;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => SafeArea(
         child: SizedBox(
           height: MediaQuery.sizeOf(sheetContext).height * 0.72,
           child: Column(
@@ -54,7 +61,9 @@ class _ScanBillScreenState extends State<ScanBillScreen> {
                     style: Theme.of(sheetContext).textTheme.titleLarge),
               ),
               Expanded(
-                child: ListView.separated(
+                child: archivedBills.isEmpty
+                    ? const Center(child: Text('No saved bills.'))
+                    : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   itemCount: archivedBills.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -67,7 +76,73 @@ class _ScanBillScreenState extends State<ScanBillScreen> {
                         title: Text(DateFormat.yMMMM().format(bill.periodEnd)),
                         subtitle: Text(
                             '${DateFormat.yMMMd().format(bill.periodEnd)} • ${NumberFormat('#,##0.##').format(bill.consumptionKwh)} kWh'),
-                        trailing: Text(money(bill.totalAmount)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(money(bill.totalAmount)),
+                            IconButton(
+                              tooltip: 'Delete bill',
+                              icon: const Icon(Icons.delete_outline),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                              onPressed: () async {
+                                final shouldDelete = await showDialog<bool>(
+                                  context: sheetContext,
+                                  builder: (dialogContext) => AlertDialog(
+                                    title: const Text('Delete saved bill?'),
+                                    content: Text(
+                                        'Delete the bill from ${DateFormat.yMMMd().format(bill.periodEnd)}? This cannot be undone.'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(dialogContext, false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(dialogContext, true),
+                                        child: const Text('Delete bill'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (shouldDelete != true || !mounted) return;
+                                try {
+                                  await widget.controller.removeBill(bill.id);
+                                  if (!mounted) return;
+                                  final remaining = widget.controller.bills
+                                      .where((item) => item.reviewed)
+                                      .toList()
+                                    ..sort((a, b) =>
+                                        b.periodEnd.compareTo(a.periodEnd));
+                                  setState(() {
+                                    if (activeBillId == bill.id) {
+                                      selectedId = remaining.isEmpty
+                                          ? null
+                                          : remaining.first.id;
+                                    }
+                                  });
+                                  if (remaining.isEmpty) {
+                                    Navigator.pop(sheetContext);
+                                  } else {
+                                    setSheetState(() {
+                                      archivedBills = remaining;
+                                    });
+                                  }
+                                } catch (_) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Could not delete this bill. Try again.')),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                          ],
+                        ),
                         onTap: () {
                           setState(() => selectedId = bill.id);
                           Navigator.pop(sheetContext);
@@ -79,6 +154,7 @@ class _ScanBillScreenState extends State<ScanBillScreen> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

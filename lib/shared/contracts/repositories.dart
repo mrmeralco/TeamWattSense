@@ -11,6 +11,7 @@ abstract interface class ApplianceRepository {
 abstract interface class BillRepository {
   Future<List<Bill>> list();
   Future<void> save(Bill bill);
+  Future<void> remove(String id);
   Future<Bill?> latestReviewed();
 }
 
