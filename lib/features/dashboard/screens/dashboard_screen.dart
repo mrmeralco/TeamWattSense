@@ -133,6 +133,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final today = DateTime(now.year, now.month, now.day);
     final monthStart = DateTime(now.year, now.month);
     final monthUsage = c.recordedKwh(monthStart, today);
+    final popEstimate = c.popGenerationEstimate(monthStart, today);
     final buckets = _periodBuckets(c, scale, period);
     final firstRecordedDay = <String, DateTime>{};
     for (final entry in c.dailyUsages) {
@@ -195,6 +196,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         '₱${c.billRate.toStringAsFixed(2)}/kWh • ${c.t('Bill average rate')}'),
                   ]))),
           const SizedBox(height: 6),
+          if (popEstimate != null)
+            Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                    '${c.t('POP generation estimate only')}: ${money(popEstimate)} • ${c.t('Estimate, not full bill cost')}',
+                    style: TextStyle(fontSize: 11, color: muted))),
           SurfaceCard(
               padding: const EdgeInsets.all(14),
               child: Column(

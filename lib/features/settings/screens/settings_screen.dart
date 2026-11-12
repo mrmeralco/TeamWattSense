@@ -3,6 +3,14 @@ import 'package:flutter/material.dart';
 import '../../../app/app_controller.dart';
 import '../../../shared/components/design_widgets.dart';
 
+String? _rateValidator(String? value) {
+  final rate = double.tryParse(value ?? '');
+  if (rate == null || !rate.isFinite || rate < 0 || rate > 10000) {
+    return 'Enter a valid rate';
+  }
+  return null;
+}
+
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen(
       {super.key, required this.controller, this.accountEmail, this.onSignOut});
@@ -15,6 +23,60 @@ class SettingsScreen extends StatelessWidget {
     Future<void> change(String key, String value) async {
       try {
         await c.preference(key, value);
+      } catch (e) {
+        if (context.mounted) showFailure(context, e);
+      }
+    }
+
+    Future<void> changePop(bool value) async {
+      final start = DateTime.now().add(const Duration(days: 1));
+      final applies = DateTime(start.year, start.month, start.day);
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(c.t(value ? 'Enable POP estimates?' : 'Disable POP estimates?')),
+          content: Text(c.t('This takes effect tomorrow (${applies.month}/${applies.day}/${applies.year}). Existing daily usage and overview history will not be erased.')),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(c.t('Cancel'))),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(c.t('Confirm'))),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+      try {
+        await c.schedulePopChange(value);
+      } catch (e) {
+        if (context.mounted) showFailure(context, e);
+      }
+    }
+
+    Future<void> editPopRates() async {
+      final peak = TextEditingController();
+      final offPeak = TextEditingController();
+      final source = TextEditingController(text: 'Current Meralco bill');
+      final now = DateTime.now();
+      final month = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+      final key = GlobalKey<FormState>();
+      final result = await showDialog<List<String>>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(c.t('POP generation rates')),
+          content: Form(key: key, child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextFormField(controller: peak, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: c.t('Peak rate (PHP/kWh)')), validator: _rateValidator),
+            TextFormField(controller: offPeak, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: c.t('Off-peak rate (PHP/kWh)')), validator: _rateValidator),
+            TextFormField(controller: source, decoration: InputDecoration(labelText: c.t('Rate source'))),
+            const SizedBox(height: 8),
+            Text('${c.t('Effective month')}: $month • ${c.t('Estimate only')}', style: const TextStyle(fontSize: 12)),
+          ])),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(c.t('Cancel'))),
+            FilledButton(onPressed: () { if (key.currentState!.validate()) Navigator.pop(context, [peak.text, offPeak.text, source.text]); }, child: Text(c.t('Save rates'))),
+          ],
+        ),
+      );
+      if (result == null) return;
+      try {
+        await c.savePopRates(effectiveMonth: month, peakRate: double.parse(result[0]), offPeakRate: double.parse(result[1]), source: result[2]);
       } catch (e) {
         if (context.mounted) showFailure(context, e);
       }
@@ -96,8 +158,11 @@ class SettingsScreen extends StatelessWidget {
                   Expanded(
                       child: Text(c.t('I’m registered in POP'),
                           style: const TextStyle(fontSize: 14))),
-                  Switch(value: c.pop, onChanged: (v) => change('pop', '$v'))
+                  Switch(value: c.popSwitchValue, onChanged: changePop)
                 ]),
+                Text(c.t('POP rates affect generation estimates only; results are estimates and do not replace your full bill rate.'), style: const TextStyle(fontSize: 12)),
+                TextButton(onPressed: editPopRates, child: Text(c.t('Enter POP rates from bill'))),
+                TextButton(onPressed: () => c.savePopRates(effectiveMonth: '2025-06', peakRate: 8.38, offPeakRate: 4.55, source: 'Meralco reference figures dated 18 June 2025', reference: true), child: Text(c.t('Save June 2025 reference rates'))),
                 const SizedBox(height: 8),
                 Text(
                     c.t(

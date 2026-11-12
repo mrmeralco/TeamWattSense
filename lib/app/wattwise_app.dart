@@ -1,5 +1,6 @@
-import '../features/mira/services/mira_suggestions.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../features/mira/services/mira_suggestions.dart';
 import '../features/dashboard/screens/dashboard_screen.dart';
 import '../features/scan_bill/screens/scan_bill_screen.dart';
 import '../features/mira/screens/mira_screen.dart';
@@ -8,6 +9,7 @@ import '../features/mira/services/firebase_mira_service.dart';
 import '../shared/theme/wattwise_theme.dart';
 import '../shared/components/design_widgets.dart';
 import 'app_controller.dart';
+import '../shared/platform/wattwise_widget_sync.dart';
 
 class WattWiseApp extends StatefulWidget {
   const WattWiseApp(
@@ -28,6 +30,34 @@ class WattWiseApp extends StatefulWidget {
 
 class _WattWiseAppState extends State<WattWiseApp> {
   int index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_syncWidget);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncWidget());
+  }
+
+  @override
+  void didUpdateWidget(covariant WattWiseApp oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_syncWidget);
+      widget.controller.addListener(_syncWidget);
+      _syncWidget();
+    }
+  }
+
+  void _syncWidget() {
+    unawaited(WattWiseWidgetSync.update(widget.controller));
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_syncWidget);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
       listenable: widget.controller,
