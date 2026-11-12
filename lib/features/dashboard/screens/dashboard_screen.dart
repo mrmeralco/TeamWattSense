@@ -171,12 +171,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Text(c.t('Monitor • Track • Save'),
                       style: TextStyle(fontSize: 12, color: muted))
                 ])),
-            IconButton(
-                onPressed: widget.onSettings,
-                tooltip: c.t('Settings'),
-                style: IconButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.surface),
-                icon: DesignIcon('14_6_imgSettings', color: muted))
           ]),
           const SizedBox(height: 10),
           Container(
@@ -200,12 +194,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     summary('Cost so far', money(monthUsage * c.billRate),
                         '₱${c.billRate.toStringAsFixed(2)}/kWh • ${c.t('Bill average rate')}'),
                   ]))),
-          const SizedBox(height: 6),
-          Row(children: [
-            Expanded(
-                child: stat('14_6_imgConnectedPlug', 'Connected Appliances',
-                    '${c.appliances.length}'))
-          ]),
           const SizedBox(height: 6),
           SurfaceCard(
               padding: const EdgeInsets.all(14),
@@ -367,7 +355,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         _row(
                                             [
                                               'Appliance',
-                                              'Power',
                                               'Hours',
                                               'Rate',
                                               'Cost'
@@ -385,7 +372,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               onTap: () => edit(a),
                                               child: _row([
                                                 a.name,
-                                                '${a.watts.toStringAsFixed(0)} W',
                                                 usage == null ? '—' : '${usage.hours.toStringAsFixed(1)} h',
                                                 '${c.billRate.toStringAsFixed(2)} ₱/kWh',
                                                 usage == null ? '—' : money(usage.kwh * c.billRate)
@@ -477,7 +463,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             borderRadius: BorderRadius.circular(8)),
         child: Row(
             children: List.generate(
-                5,
+                values.length,
                 (i) => Expanded(
                     flex: i == 0 ? 3 : 2,
                     child: Row(children: [
@@ -492,8 +478,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   fontWeight: heading
                                       ? FontWeight.w600
                                       : FontWeight.w400),
-                              textAlign:
-                                  i == 4 ? TextAlign.right : TextAlign.left)),
+                              textAlign: i == values.length - 1
+                                  ? TextAlign.right
+                                  : TextAlign.left)),
                     ])))));
   }
 }

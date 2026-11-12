@@ -21,7 +21,7 @@ class ApplianceForm extends StatefulWidget {
 class _ApplianceFormState extends State<ApplianceForm> {
   final _form = GlobalKey<FormState>();
   final _catalog = ApplianceCatalogRepository();
-  late final TextEditingController name, watts, days, dailyHours;
+  late final TextEditingController name, watts, dailyHours;
   bool busy = false;
   @override
   void initState() {
@@ -29,7 +29,6 @@ class _ApplianceFormState extends State<ApplianceForm> {
     final a = widget.appliance;
     name = TextEditingController(text: a?.name);
     watts = TextEditingController(text: a?.watts.toString() ?? '');
-    days = TextEditingController(text: '${a?.daysPerMonth ?? 30}');
     final date = widget.usageDate ?? DateTime.now();
     final entries = a == null
         ? <DailyUsage>[]
@@ -44,7 +43,7 @@ class _ApplianceFormState extends State<ApplianceForm> {
 
   @override
   void dispose() {
-    for (final c in [name, watts, days, dailyHours]) {
+    for (final c in [name, watts, dailyHours]) {
       c.dispose();
     }
     super.dispose();
@@ -59,7 +58,7 @@ class _ApplianceFormState extends State<ApplianceForm> {
           name: name.text.trim(),
           watts: double.parse(watts.text),
           hoursPerDay: double.parse(dailyHours.text),
-          daysPerMonth: int.parse(days.text),
+          daysPerMonth: widget.appliance?.daysPerMonth ?? 30,
           quantity: widget.appliance?.quantity ?? 1);
       await widget.controller.saveAppliance(appliance);
       final date = widget.usageDate ?? DateTime.now();
@@ -234,8 +233,6 @@ class _ApplianceFormState extends State<ApplianceForm> {
                           unit: 'W', max: 1000000),
                       field('Hours used per day', dailyHours, '44_41_imgClock',
                           unit: 'hours', max: 24),
-                      field('Days per month', days, '44_41_imgClock',
-                          unit: 'days', max: 31, integer: true),
                       SurfaceCard(
                           color: c.dark ? null : paleGreen,
                           child: Row(children: [
