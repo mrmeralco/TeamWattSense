@@ -1,3 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../shared/sync/cloud_sync.dart';
+import '../../../shared/sync/sync_store.dart';
 import 'verification_screen.dart';
 import 'legal_consent.dart';
 import 'dart:async';
@@ -77,6 +80,7 @@ class _UserWorkspaceState extends State<UserWorkspace> {
   String? error;
   bool signingOut = false;
   bool policyAccepted = false;
+  CloudSync? cloudSync;
   @override
   void initState() {
     super.initState();
@@ -121,6 +125,7 @@ class _UserWorkspaceState extends State<UserWorkspace> {
             MiraContextProvider(repo, bills, daily),
             AiRequestBudget(repo.database));
       });
+      if (accepted) await startSync();
     } catch (_) {
       if (mounted) {
         setState(() => error =
@@ -129,16 +134,50 @@ class _UserWorkspaceState extends State<UserWorkspace> {
     }
   }
 
+  Future<void> startSync() async {
+    if (!mounted || cloudSync != null || controller == null) return;
+    final c = controller!;
+    final service = CloudSync(
+        store: SyncStore(repository!.database),
+        firestore: FirebaseFirestore.instanceFor(app: widget.app),
+        auth: widget.auth,
+        uid: widget.user.uid,
+        onChanged: () async {
+          if (mounted) await c.load();
+        },
+        onStatus: (status) {
+          if (mounted) c.setCloudSyncStatus(status);
+        });
+    cloudSync = service;
+    try {
+      await service.start();
+      if (!mounted) return;
+      c.syncNow = service.sync;
+      c.onLocalChange = () {
+        unawaited(service.sync());
+      };
+    } catch (_) {
+      if (mounted) {
+        c.setCloudSyncStatus(
+            'Cloud sync could not start. Your local records are safe. Reopen the app to retry.');
+      }
+    }
+  }
+
   Future<void> signOut() async {
     if (signingOut) return;
     setState(() => signingOut = true);
     try {
+      controller?.onLocalChange = null;
+      await cloudSync?.stop();
+      cloudSync = null;
       await widget.auth.signOut();
     } catch (_) {
       if (mounted) {
         setState(() {
           signingOut = false;
           error = 'Could not sign out. Please retry.';
+          unawaited(startSync());
         });
       }
     }
@@ -146,9 +185,14 @@ class _UserWorkspaceState extends State<UserWorkspace> {
 
   @override
   void dispose() {
+    controller?.onLocalChange = null;
     controller?.dispose();
     final repo = repository;
-    if (repo != null) unawaited(repo.close());
+    final service = cloudSync;
+    unawaited(() async {
+      await service?.stop();
+      if (repo != null) await repo.close();
+    }());
     super.dispose();
   }
 
@@ -174,7 +218,10 @@ class _UserWorkspaceState extends State<UserWorkspace> {
     if (!policyAccepted) {
       return PolicyConsentScreen(
           database: repository!.database,
-          onAccepted: () => setState(() => policyAccepted = true),
+          onAccepted: () {
+            setState(() => policyAccepted = true);
+            unawaited(startSync());
+          },
           onSignOut: signOut);
     }
     return WattWiseApp(

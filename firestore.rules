@@ -2,6 +2,33 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    match /wattwise_users/{uid}/records/{recordId} {
+      function owner() {
+        return request.auth != null && request.auth.uid == uid
+          && request.auth.token.email_verified == true;
+      }
+      allow read: if owner();
+      allow create, update: if owner()
+        && request.resource.data.keys().hasOnly(['schema','table','key','version','deleted','payload','parts','updatedAt'])
+        && request.resource.data.schema == 1
+        && request.resource.data.table in ['appliances','bills','daily_usage','preferences','pop_transitions','pop_rates','pop_usage_split','pop_usage_sessions']
+        && request.resource.data.key is string
+        && request.resource.data.version is string
+        && request.resource.data.deleted is bool
+        && request.resource.data.payload is string
+        && request.resource.data.payload.size() <= 180000
+        && request.resource.data.parts is int
+        && request.resource.data.parts >= 0 && request.resource.data.parts <= 400
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+      match /parts/{partId} {
+        allow read, delete: if owner();
+        allow create, update: if owner()
+          && request.resource.data.keys().hasOnly(['payload'])
+          && request.resource.data.payload is string
+          && request.resource.data.payload.size() <= 180000;
+      }
+    }
     match /appliance_catalog/{applianceId} {
       allow read: if true;
       allow write: if false;

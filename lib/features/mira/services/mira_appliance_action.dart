@@ -27,27 +27,19 @@ class MiraApplianceAction {
       original = matches.single;
     }
     final values = <String, Object?>{if (original != null) ...original.toMap()};
-    for (final key in [
-      'name',
-      'watts',
-      'hours_per_day',
-      'days_per_month',
-      'quantity'
-    ]) {
+    for (final key in ['name', 'watts', 'hours_per_day', 'quantity']) {
       if (args[key] != null) values[key] = args[key];
     }
+    // Match manual entry: 30 days for new appliances, preserve existing edits.
+    values['days_per_month'] = original?.daysPerMonth ?? 30;
+    values.putIfAbsent('quantity', () => 1);
     if (values['name'] != null &&
         (values['name'] is! String ||
             (values['name'] as String).trim().isEmpty ||
             (values['name'] as String).length > 80)) {
       throw const FormatException('Appliance name must be 1–80 characters.');
     }
-    for (final key in [
-      'watts',
-      'hours_per_day',
-      'days_per_month',
-      'quantity'
-    ]) {
+    for (final key in ['watts', 'hours_per_day', 'quantity']) {
       final v = values[key];
       if (v == null) continue;
       final max = {

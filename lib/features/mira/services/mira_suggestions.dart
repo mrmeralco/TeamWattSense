@@ -1,3 +1,4 @@
+import 'meralco_guidance.dart';
 import 'pop_advice.dart';
 import '../../../shared/models/appliance.dart';
 import '../../../shared/models/daily_usage.dart';
@@ -11,7 +12,10 @@ List<String> miraSuggestions(
   final start = end.subtract(const Duration(days: 29));
   final fil = language == 'fil';
   final pop = assessPop(bills, now: today);
-  final popPrompts = [if (pop.suggest) fil ? popQuestionFil : popQuestion];
+  final popPrompts = [
+    if (pop.suggest) fil ? popQuestionFil : popQuestion,
+    if (bills.any((b) => b.reviewed)) fil ? meralcoQuestionFil : meralcoQuestion
+  ];
   if (appliances.isEmpty) {
     return [
       ...popPrompts,

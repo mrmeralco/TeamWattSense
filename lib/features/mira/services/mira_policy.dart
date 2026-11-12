@@ -9,7 +9,7 @@ String? miraLocalReply(String question,
       r'ignore.{0,30}(instruction|prompt|rule)|system prompt|developer message|jailbreak|pretend to be|act as|forget.{0,20}(rule|instruction)',
       caseSensitive: false);
   final topic = RegExp(
-      r'\b(pop|peak|off-peak|wattwise|mira|electricity|electrical|energy|appliance|appliances|bills|meralco|kwh|watt|watts|wattage|bill|billing|tariff|consumption|aircon|airconditioner|ac|tv|fans|lamp|computer|laptop|rice cooker|washing machine|oven|refrigerator|fridge|fan|heater|washer|dryer|television|microwave|solar|standby|kuryente|konsumo|saksakan|bayarin|singil|matipid|makatipid|ilaw)\b',
+      r'\b(lifeline|discount|senior|net-metering|pop|peak|off-peak|wattwise|mira|electricity|electrical|energy|appliance|appliances|bills|meralco|kwh|watt|watts|wattage|bill|billing|tariff|consumption|aircon|airconditioner|ac|tv|fans|lamp|computer|laptop|rice cooker|washing machine|oven|refrigerator|fridge|fan|heater|washer|dryer|television|microwave|solar|standby|kuryente|konsumo|saksakan|bayarin|singil|matipid|makatipid|ilaw)\b',
       caseSensitive: false);
   final followup = RegExp(
       r'^(why|how|explain more|tell me more|what should i change|bakit|paano|yes|oo)[?.! ]*$');
