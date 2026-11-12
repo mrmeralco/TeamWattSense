@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -10,10 +11,23 @@ class SqliteApplianceRepository implements ApplianceRepository {
   SqliteApplianceRepository(this.database);
   final Database database;
 
-  static Future<SqliteApplianceRepository> open() async {
+  static String databaseNameForUser(String uid) {
+    if (uid.isEmpty || utf8.encode(uid).length > 128) {
+      throw ArgumentError('Invalid account ID');
+    }
+    return 'wattwise_user_${base64Url.encode(utf8.encode(uid)).replaceAll('=', '')}.db';
+  }
+
+  static Future<SqliteApplianceRepository> open({String? userId}) async {
     final database = await openDatabase(
+<<<<<<< HEAD
       p.join(await getDatabasesPath(), 'wattwise.db'),
+      version: 6,
+=======
+      p.join(await getDatabasesPath(),
+          userId == null ? 'wattwise.db' : databaseNameForUser(userId)),
       version: 4,
+>>>>>>> c856fef4235f730f44f0d6d7bfed19109ffcfa7a
       onCreate: (db, version) async {
         await db.execute(
           'CREATE TABLE appliances (id TEXT PRIMARY KEY, '
@@ -26,6 +40,8 @@ class SqliteApplianceRepository implements ApplianceRepository {
           'hours REAL NOT NULL, watts REAL NOT NULL, quantity INTEGER NOT NULL, '
           'PRIMARY KEY (appliance_id, date))',
         );
+        await _createPopTables(db);
+        await _createPopSessionTable(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) await SqliteBillRepository.createTables(db);
@@ -36,15 +52,66 @@ class SqliteApplianceRepository implements ApplianceRepository {
           );
         }
         if (oldVersion < 4) {
-          await db.execute('ALTER TABLE daily_usage ADD COLUMN watts REAL NOT NULL DEFAULT 0');
-          await db.execute('ALTER TABLE daily_usage ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1');
+          await db.execute(
+              'ALTER TABLE daily_usage ADD COLUMN watts REAL NOT NULL DEFAULT 0');
+          await db.execute(
+              'ALTER TABLE daily_usage ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1');
           await db.execute(
               'UPDATE daily_usage SET watts = COALESCE((SELECT watts FROM appliances WHERE appliances.id = daily_usage.appliance_id), 0), '
               'quantity = COALESCE((SELECT quantity FROM appliances WHERE appliances.id = daily_usage.appliance_id), 1)');
         }
+        if (oldVersion < 5) await _createPopTables(db);
+        if (oldVersion < 6) await _createPopSessionTable(db);
       },
     );
     return SqliteApplianceRepository(database);
+  }
+
+  static Future<void> _createPopTables(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS pop_transitions (
+        effective_date TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+        recorded_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS pop_rates (
+        effective_month TEXT PRIMARY KEY,
+        peak_generation_rate REAL NOT NULL CHECK (peak_generation_rate >= 0),
+        off_peak_generation_rate REAL NOT NULL CHECK (off_peak_generation_rate >= 0),
+        source TEXT NOT NULL,
+        is_reference INTEGER NOT NULL DEFAULT 0 CHECK (is_reference IN (0, 1)),
+        recorded_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS pop_usage_split (
+        appliance_id TEXT NOT NULL,
+        usage_date TEXT NOT NULL,
+        peak_hours REAL NOT NULL CHECK (peak_hours >= 0),
+        off_peak_hours REAL NOT NULL CHECK (off_peak_hours >= 0),
+        PRIMARY KEY (appliance_id, usage_date),
+        CHECK (peak_hours + off_peak_hours <= 24)
+      )
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_pop_usage_split_date
+      ON pop_usage_split (usage_date)
+    ''');
+  }
+
+  static Future<void> _createPopSessionTable(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS pop_usage_sessions (
+        appliance_id TEXT NOT NULL,
+        usage_date TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        stopped_at TEXT NOT NULL,
+        PRIMARY KEY (appliance_id, usage_date),
+        CHECK (stopped_at > started_at)
+      )
+    ''');
   }
 
   @override
@@ -67,7 +134,8 @@ class SqliteApplianceRepository implements ApplianceRepository {
   @override
   Future<void> remove(String id) async {
     await database.delete('appliances', where: 'id = ?', whereArgs: [id]);
-    await database.delete('daily_usage', where: 'appliance_id = ?', whereArgs: [id]);
+    await database
+        .delete('daily_usage', where: 'appliance_id = ?', whereArgs: [id]);
   }
 
   Future<void> close() => database.close();
@@ -137,7 +205,7 @@ class SqliteDailyUsageRepository implements DailyUsageRepository {
 
   @override
   Future<void> removeForAppliance(String applianceId) async {
-    await database
-        .delete('daily_usage', where: 'appliance_id = ?', whereArgs: [applianceId]);
+    await database.delete('daily_usage',
+        where: 'appliance_id = ?', whereArgs: [applianceId]);
   }
 }

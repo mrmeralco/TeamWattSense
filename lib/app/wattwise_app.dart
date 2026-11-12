@@ -13,10 +13,17 @@ import '../shared/platform/wattwise_widget_sync.dart';
 
 class WattWiseApp extends StatefulWidget {
   const WattWiseApp(
-      {super.key, required this.controller, this.mira, this.miraError});
+      {super.key,
+      required this.controller,
+      this.mira,
+      this.miraError,
+      this.accountEmail,
+      this.onSignOut});
   final AppController controller;
   final FirebaseMiraService? mira;
   final String? miraError;
+  final String? accountEmail;
+  final Future<void> Function()? onSignOut;
   @override
   State<WattWiseApp> createState() => _WattWiseAppState();
 }
@@ -90,7 +97,10 @@ class _WattWiseAppState extends State<WattWiseApp> {
                                         unavailableReason: widget.miraError,
                                         estimatedRate: c.rate,
                                         registeredPop: c.pop),
-                                    SettingsScreen(controller: c),
+                                    SettingsScreen(
+                                        controller: c,
+                                        accountEmail: widget.accountEmail,
+                                        onSignOut: widget.onSignOut),
                                   ])))),
                       bottomNavigationBar: SafeArea(
                           top: false,
