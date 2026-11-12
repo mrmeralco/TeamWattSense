@@ -161,6 +161,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final monthUsage = c.recordedKwh(monthStart, today);
     final popEstimate = c.popGenerationEstimate(monthStart, today);
     final buckets = _periodBuckets(c, scale, period);
+<<<<<<< HEAD
     final visibleAppliances = c.appliances.where((appliance) {
       return c.dailyUsages.any((entry) =>
           entry.applianceId == appliance.id &&
@@ -169,6 +170,10 @@ class _DashboardScreenState extends State<DashboardScreen>
           entry.date.day == applianceDate.day);
     }).toList();
     final periodLabel = scale == 0
+=======
+    final visibleAppliances = c.appliancesForDate(applianceDate);
+    final periodLabel = scale == 1
+>>>>>>> 9fba20a30815c0423ab46daf5828067744b03dda
         ? DateFormat.yMMM().format(period)
         : scale == 1
             ? '${period.year}'
@@ -177,7 +182,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
         children: [
           Row(children: [
-            const DesignIcon('14_6_imgHomeEnergyLogo'),
+            Image.asset('assets/figma/wattwise_logo.png',
+                width: 44,
+                height: 44,
+                fit: BoxFit.contain,
+                semanticLabel: 'WattWise'),
             const SizedBox(width: 10),
             Expanded(
                 child: Column(
@@ -377,7 +386,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           padding: const EdgeInsets.symmetric(vertical: 30),
                           child: Center(
                               child: Text(c.t(
-                                  'No appliances were recorded by this date.'))))
+                                  'No appliances were recorded on this date.'))))
                     else
                       LayoutBuilder(
                           builder: (context, constraints) =>

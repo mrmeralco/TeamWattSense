@@ -83,6 +83,7 @@ class _ApplianceFormState extends State<ApplianceForm> {
                 e.date.month == date.month &&
                 e.date.day == date.day)
             .toList();
+    if (entries.isNotEmpty) watts.text = entries.first.watts.toString();
     dailyHours = TextEditingController(
         text: entries.isEmpty ? '' : entries.first.hours.toString());
     final session = a == null
@@ -411,10 +412,10 @@ class _ApplianceFormState extends State<ApplianceForm> {
                                     final confirmed = await showDialog<bool>(
                                         context: context,
                                         builder: (context) => AlertDialog(
-                                                title: Text(
-                                                    c.t('Delete appliance')),
+                                                title: Text(c.t(
+                                                    'Delete this day’s entry')),
                                                 content: Text(
-                                                    widget.appliance!.name),
+                                                    '${widget.appliance!.name}: only the entry for ${DateFormat.yMMMMd().format(widget.usageDate ?? DateTime.now())} will be deleted. Earlier entries are kept.'),
                                                 actions: [
                                                   TextButton(
                                                       onPressed: () =>
@@ -427,13 +428,14 @@ class _ApplianceFormState extends State<ApplianceForm> {
                                                           Navigator.pop(
                                                               context, true),
                                                       child: Text(c.t(
-                                                          'Delete appliance')))
+                                                          'Delete this day’s entry')))
                                                 ]));
                                     if (confirmed != true || !mounted) return;
                                     setState(() => busy = true);
                                     try {
-                                      await c.removeAppliance(
-                                          widget.appliance!.id);
+                                      await c.removeDailyUsage(
+                                          widget.appliance!.id,
+                                          widget.usageDate ?? DateTime.now());
                                       if (context.mounted) {
                                         Navigator.pop(context);
                                       }
@@ -445,7 +447,7 @@ class _ApplianceFormState extends State<ApplianceForm> {
                                       if (mounted) setState(() => busy = false);
                                     }
                                   },
-                            child: Text(c.t('Delete appliance'),
+                            child: Text(c.t('Delete this day’s entry'),
                                 style: TextStyle(
                                     color:
                                         Theme.of(context).colorScheme.error)))

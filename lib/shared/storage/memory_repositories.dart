@@ -49,7 +49,8 @@ class MemoryDailyUsageRepository implements DailyUsageRepository {
   @override
   Future<List<DailyUsage>> list({DateTime? from, DateTime? through}) async =>
       _items.values.where((entry) {
-        final date = DateTime(entry.date.year, entry.date.month, entry.date.day);
+        final date =
+            DateTime(entry.date.year, entry.date.month, entry.date.day);
         return (from == null || !date.isBefore(from)) &&
             (through == null || !date.isAfter(through));
       }).toList()
@@ -68,6 +69,15 @@ class MemoryDailyUsageRepository implements DailyUsageRepository {
     for (final entry in entries) {
       _items[_key(entry)] = entry;
     }
+  }
+
+  @override
+  Future<void> removeForDate(String applianceId, DateTime date) async {
+    _items.removeWhere((_, e) =>
+        e.applianceId == applianceId &&
+        e.date.year == date.year &&
+        e.date.month == date.month &&
+        e.date.day == date.day);
   }
 
   @override

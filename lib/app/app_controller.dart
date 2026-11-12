@@ -432,6 +432,30 @@ class AppController extends ChangeNotifier {
     onLocalChange?.call();
   }
 
+  List<Appliance> appliancesForDate(DateTime date) {
+    final ids = dailyUsages
+        .where((e) =>
+            e.date.year == date.year &&
+            e.date.month == date.month &&
+            e.date.day == date.day)
+        .map((e) => e.applianceId)
+        .toSet();
+    return appliances.where((a) => ids.contains(a.id)).toList();
+  }
+
+  Future<void> removeDailyUsage(String id, DateTime date) async {
+    final repo = dailyUsageRepository;
+    if (repo == null) throw StateError('Daily usage storage is unavailable');
+    await repo.removeForDate(id, date);
+    dailyUsages = await repo.list();
+    final key =
+        '$id:${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    popUsageSplits.remove(key);
+    popUsageSessions.remove(key);
+    notifyListeners();
+    onLocalChange?.call();
+  }
+
   Future<void> removeAppliance(String id) async {
     await applianceRepository.remove(id);
     await dailyUsageRepository?.removeForAppliance(id);
