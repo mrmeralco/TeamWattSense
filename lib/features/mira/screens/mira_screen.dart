@@ -1,3 +1,4 @@
+import '../services/save_mira_action.dart';
 import '../services/pop_advice.dart';
 import '../../../app/app_controller.dart';
 import 'mira_appliance_review.dart';
@@ -66,11 +67,13 @@ class _MiraScreenState extends State<MiraScreen> {
       if (!mounted) return;
       var answer = reply.text;
       if (reply.action != null) {
-        final result = await showDialog<String>(
-            context: context,
-            barrierDismissible: false,
-            builder: (_) => MiraApplianceReview(
-                action: reply.action!, controller: widget.controller));
+        final result = canSaveMiraAction(reply.action!)
+            ? await saveMiraAction(widget.controller, reply.action!)
+            : await showDialog<String>(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => MiraApplianceReview(
+                    action: reply.action!, controller: widget.controller));
         if (!mounted) return;
         answer = result ?? 'Appliance change cancelled. Nothing was saved.';
       }

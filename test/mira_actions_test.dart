@@ -1,3 +1,4 @@
+import 'package:wattwise/features/mira/services/save_mira_action.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wattwise/app/app_controller.dart';
@@ -8,6 +9,30 @@ import 'package:wattwise/features/mira/services/mira_appliance_action.dart';
 import 'package:wattwise/features/mira/screens/mira_appliance_review.dart';
 
 void main() {
+  test('Complete actions save directly; incomplete additions require details',
+      () async {
+    final c = AppController(
+        applianceRepository: MemoryApplianceRepository(),
+        billRepository: MemoryBillRepository(),
+        dailyUsageRepository: MemoryDailyUsageRepository());
+    final incomplete =
+        MiraApplianceAction.parse({'mode': 'add', 'name': 'Fan'}, []);
+    expect(canSaveMiraAction(incomplete), false);
+    final action = MiraApplianceAction.parse(
+        {'mode': 'add', 'name': 'Fan', 'watts': 60, 'hours_per_day': 8}, []);
+    expect(canSaveMiraAction(action), true);
+    await saveMiraAction(c, action);
+    final edit = MiraApplianceAction.parse({
+      'mode': 'edit',
+      'applianceId': c.appliances.single.id,
+      'hours_per_day': 4
+    }, c.appliances);
+    await saveMiraAction(c, edit);
+    expect(c.appliances.length, 1);
+    expect(c.dailyUsages.single.hours, 4);
+    expect(c.appliances.single.quantity, 1);
+  });
+
   const fan = Appliance(
       id: 'fan',
       name: 'Fan',
@@ -87,6 +112,7 @@ void main() {
     }, []);
     await open(tester, c, action);
     expect(find.text('Days per month'), findsNothing);
+    expect(find.text('Quantity'), findsNothing);
     expect(await c.applianceRepository.list(), isEmpty);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();

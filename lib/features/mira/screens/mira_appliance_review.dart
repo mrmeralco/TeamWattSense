@@ -1,8 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../app/app_controller.dart';
-import '../../../shared/models/appliance.dart';
-import '../../../shared/models/daily_usage.dart';
+import '../services/save_mira_action.dart';
 import '../services/mira_appliance_action.dart';
 
 class MiraApplianceReview extends StatefulWidget {
@@ -25,7 +23,7 @@ class _MiraApplianceReviewState extends State<MiraApplianceReview> {
   void initState() {
     super.initState();
     fields = {
-      for (final k in ['name', 'watts', 'hours_per_day', 'quantity'])
+      for (final k in ['name', 'watts', 'hours_per_day'])
         k: TextEditingController(
             text: widget.action.values[k]?.toString() ?? '')
     };
@@ -46,63 +44,25 @@ class _MiraApplianceReviewState extends State<MiraApplianceReview> {
       error = null;
     });
     try {
-      final original = widget.action.original;
       final inventory = await widget.controller.applianceRepository.list();
-      if (original != null) {
-        final current = inventory.where((a) => a.id == original.id).toList();
-        if (current.length != 1 ||
-            jsonEncode(current.single.toMap()) !=
-                jsonEncode(original.toMap())) {
-          throw const FormatException(
-              'This appliance changed after Mira read it. Cancel and request the edit again.');
-        }
-      }
-      final values = <String, Object?>{
+      final action = MiraApplianceAction.parse({
         'mode': widget.action.mode,
-        'applianceId': original?.id,
+        'applianceId': widget.action.original?.id,
         'name': fields['name']!.text.trim(),
         'watts': double.parse(fields['watts']!.text),
         'hours_per_day': double.parse(fields['hours_per_day']!.text),
-        'days_per_month': original?.daysPerMonth ?? 30,
-        'quantity': int.parse(fields['quantity']!.text)
-      };
-      final validated = MiraApplianceAction.parse(values, inventory);
-      final a = Appliance(
-          id: original?.id ?? newId,
-          name: validated.values['name'] as String,
-          watts: values['watts'] as double,
-          hoursPerDay: values['hours_per_day'] as double,
-          daysPerMonth: values['days_per_month'] as int,
-          quantity: values['quantity'] as int);
-      if (widget.controller.dailyUsageRepository == null) {
-        throw StateError('Daily usage storage is unavailable');
-      }
-      final dateKey =
-          '${usageDate.year.toString().padLeft(4, '0')}-${usageDate.month.toString().padLeft(2, '0')}-${usageDate.day.toString().padLeft(2, '0')}';
-      final session = widget.controller.popUsageSessions['${a.id}:$dateKey'];
-      if (session != null) {
-        final recordedHours =
-            session['stop']!.difference(session['start']!).inMinutes / 60;
-        if ((recordedHours - a.hoursPerDay).abs() > .01) {
-          throw const FormatException(
-              'This entry has POP on/off times. Change its times in Dashboard to update the hours consistently. Nothing was changed.');
-        }
-      }
-      await widget.controller.saveAppliance(a);
-      {
-        await widget.controller.saveDailyUsages([
-          DailyUsage(
-              applianceId: a.id,
-              date: usageDate,
-              hours: a.hoursPerDay,
-              watts: a.watts,
-              quantity: a.quantity)
-        ]);
-      }
-      if (mounted) {
-        Navigator.pop(context,
-            '${original == null ? 'Added' : 'Updated'} ${a.quantity} × ${a.name}: ${a.watts} W each, ${a.hoursPerDay} hours/day. Recorded for today (${usageDate.year}-${usageDate.month}-${usageDate.day}); view today in Dashboard. Earlier daily usage is unchanged.');
-      }
+        'quantity': widget.action.values['quantity'] ??
+            widget.action.original?.quantity ??
+            1,
+      }, inventory);
+      // Preserve the original snapshot for stale-edit detection.
+      final result = await saveMiraAction(
+          widget.controller,
+          MiraApplianceAction(
+              action.mode, action.values, widget.action.original),
+          id: newId,
+          date: usageDate);
+      if (mounted) Navigator.pop(context, result);
     } catch (e) {
       if (mounted) {
         setState(() => error = e is FormatException
