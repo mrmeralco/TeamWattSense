@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "97502564446",
+    "project_id": "iseeapp-ddf3a",
+    "storage_bucket": "iseeapp-ddf3a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:97502564446:android:06aba634f628342ef364cf",
+        "android_client_info": {
+          "package_name": "com.example.wattwise"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDG1LZ4juUA3q3KEvcRX7H9hwWcNaQvMhI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:97502564446:android:014c38956d3257b7f364cf",
+        "android_client_info": {
+          "package_name": "com.isee.isee_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDG1LZ4juUA3q3KEvcRX7H9hwWcNaQvMhI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:97502564446:android:663da6eab52bb389f364cf",
+        "android_client_info": {
+          "package_name": "com.jcm.closer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDG1LZ4juUA3q3KEvcRX7H9hwWcNaQvMhI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

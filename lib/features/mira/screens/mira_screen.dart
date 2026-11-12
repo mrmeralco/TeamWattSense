@@ -1,3 +1,4 @@
+import '../../../shared/firebase/ai_failure.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 import '../../../shared/components/design_widgets.dart';
@@ -29,6 +30,7 @@ class _MiraScreenState extends State<MiraScreen> {
   final _messages = <({bool user, String text})>[];
   bool _busy = false;
   String? _failedQuestion;
+  String _failureMessage = '';
   String t(String s) => translate(s, widget.language);
   void _scrollDown() => WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _scroll.hasClients) {
@@ -62,8 +64,13 @@ class _MiraScreenState extends State<MiraScreen> {
         ]);
         if (_history.length > 20) _history.removeRange(0, _history.length - 20);
       });
-    } catch (_) {
-      if (mounted) setState(() => _failedQuestion = question);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _failedQuestion = question;
+          _failureMessage = firebaseAiFailureMessage(error);
+        });
+      }
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -165,8 +172,7 @@ class _MiraScreenState extends State<MiraScreen> {
           if (_failedQuestion != null)
             bubble(
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text(
-                  'Could not reach Mira. Check your connection, then retry.'),
+              SelectableText(_failureMessage),
               TextButton(
                   onPressed: () => _send(_failedQuestion, true),
                   child: const Text('Retry'))
