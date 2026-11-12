@@ -24,6 +24,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/figma/
+    - assets/data/appliance_catalog.json
   fonts:
     - family: Inter
       fonts:

@@ -1,6 +1,7 @@
 import '../contracts/repositories.dart';
 import '../models/appliance.dart';
 import '../models/bill.dart';
+import '../models/daily_usage.dart';
 
 class MemoryApplianceRepository implements ApplianceRepository {
   final _items = <String, Appliance>{};
@@ -32,5 +33,40 @@ class MemoryBillRepository implements BillRepository {
     final items = _items.values.where((b) => b.reviewed).toList()
       ..sort((a, b) => b.periodEnd.compareTo(a.periodEnd));
     return items.isEmpty ? null : items.first;
+  }
+}
+
+class MemoryDailyUsageRepository implements DailyUsageRepository {
+  final _items = <String, DailyUsage>{};
+
+  String _key(DailyUsage entry) => '${entry.applianceId}:${entry.dateKey}';
+
+  @override
+  Future<List<DailyUsage>> list({DateTime? from, DateTime? through}) async =>
+      _items.values.where((entry) {
+        final date = DateTime(entry.date.year, entry.date.month, entry.date.day);
+        return (from == null || !date.isBefore(from)) &&
+            (through == null || !date.isAfter(through));
+      }).toList()
+        ..sort((a, b) => a.date.compareTo(b.date));
+
+  @override
+  Future<void> saveAll(List<DailyUsage> entries) async {
+    for (final entry in entries) {
+      if (!entry.hours.isFinite || entry.hours < 0 || entry.hours > 24) {
+        throw ArgumentError('Daily usage must be between 0 and 24 hours');
+      }
+      if (!entry.watts.isFinite || entry.watts < 0 || entry.quantity < 1) {
+        throw ArgumentError('Invalid appliance details for daily usage');
+      }
+    }
+    for (final entry in entries) {
+      _items[_key(entry)] = entry;
+    }
+  }
+
+  @override
+  Future<void> removeForAppliance(String applianceId) async {
+    _items.removeWhere((_, entry) => entry.applianceId == applianceId);
   }
 }

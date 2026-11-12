@@ -14,9 +14,11 @@ Future<void> main() async {
     // Offline data is available even when Firebase initialization fails.
     final appliances = await SqliteApplianceRepository.open();
     final bills = SqliteBillRepository(appliances.database);
+    final dailyUsage = SqliteDailyUsageRepository(appliances.database);
     final controller = AppController(
         applianceRepository: appliances,
         billRepository: bills,
+        dailyUsageRepository: dailyUsage,
         database: appliances.database);
     await controller.load();
     FirebaseMiraService? mira;
