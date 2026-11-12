@@ -20,14 +20,9 @@ class SqliteApplianceRepository implements ApplianceRepository {
 
   static Future<SqliteApplianceRepository> open({String? userId}) async {
     final database = await openDatabase(
-<<<<<<< HEAD
-      p.join(await getDatabasesPath(), 'wattwise.db'),
-      version: 6,
-=======
       p.join(await getDatabasesPath(),
           userId == null ? 'wattwise.db' : databaseNameForUser(userId)),
-      version: 4,
->>>>>>> c856fef4235f730f44f0d6d7bfed19109ffcfa7a
+      version: 6,
       onCreate: (db, version) async {
         await db.execute(
           'CREATE TABLE appliances (id TEXT PRIMARY KEY, '

@@ -22,21 +22,25 @@ class WattWiseWidgetSync {
       await _channel.invokeMethod<void>('updateWidget', {
         'todayDate': DateFormat('yyyy-MM-dd').format(today),
         'yesterdayDate': DateFormat('yyyy-MM-dd').format(yesterday),
+        'todayKwh': todayKwh,
+        'yesterdayKwh': yesterdayKwh,
         'todayAvailable': todayAvailable,
         'yesterdayAvailable': yesterdayAvailable,
+        'todayValue': todayAvailable ? amountFormat.format(todayKwh) : '—',
+        'yesterdayValue':
+            yesterdayAvailable ? amountFormat.format(yesterdayKwh) : '—',
         'todayTotal': todayAvailable ? '${amountFormat.format(todayKwh)} kWh' : '—',
         'yesterdayTotal':
             yesterdayAvailable ? '${amountFormat.format(yesterdayKwh)} kWh' : '—',
-        'difference': comparisonAvailable
-            ? '${difference.abs().toStringAsFixed(1)} kWh ${difference < 0 ? 'lower' : difference > 0 ? 'higher' : 'same'}'
-            : 'Comparison unavailable',
+        'differenceKwh': difference,
+        'comparisonAvailable': comparisonAvailable,
         'differenceLower': comparisonAvailable && difference < 0,
-        'todayProgress': comparisonAvailable && todayKwh + yesterdayKwh > 0
-            ? (todayKwh / (todayKwh + yesterdayKwh) * 1000).round()
-            : 500,
-        'yesterdayProgress': comparisonAvailable && todayKwh + yesterdayKwh > 0
-            ? (yesterdayKwh / (todayKwh + yesterdayKwh) * 1000).round()
-            : 500,
+        'todayProgress': comparisonAvailable && (todayKwh > yesterdayKwh ? todayKwh : yesterdayKwh) > 0
+            ? (todayKwh / (todayKwh > yesterdayKwh ? todayKwh : yesterdayKwh) * 1000).round()
+            : 0,
+        'yesterdayProgress': comparisonAvailable && (todayKwh > yesterdayKwh ? todayKwh : yesterdayKwh) > 0
+            ? (yesterdayKwh / (todayKwh > yesterdayKwh ? todayKwh : yesterdayKwh) * 1000).round()
+            : 0,
       });
     } on PlatformException {
       return;

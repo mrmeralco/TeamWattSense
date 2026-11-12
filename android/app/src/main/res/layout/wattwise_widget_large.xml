@@ -14,8 +14,17 @@
         android:orientation="horizontal">
 
         <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:text="ϟ"
+            android:textColor="#35EF88"
+            android:textSize="16sp" />
+
+        <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="5dp"
             android:layout_weight="1"
             android:fontFamily="sans-serif-medium"
             android:letterSpacing="0.05"
@@ -23,7 +32,7 @@
             android:textColor="#AAB4BC"
             android:textSize="9sp" />
 
-        <View
+        <TextView
             android:layout_width="18dp"
             android:layout_height="5dp"
             android:background="@drawable/wattwise_widget_indicator" />
@@ -31,101 +40,89 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="0dp"
+        android:layout_height="wrap_content"
         android:layout_marginTop="9dp"
-        android:layout_weight="1"
+        android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <LinearLayout
+        <TextView
+            android:id="@+id/widget_today_status"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:orientation="vertical">
+            android:fontFamily="sans-serif-medium"
+            android:text="TODAY’S USAGE (SO FAR):"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp" />
 
-            <TextView
-                android:id="@+id/widget_today_status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-medium"
-                android:text="TODAY"
-                android:textColor="#FFFFFF"
-                android:textSize="10sp" />
-
-            <TextView
-                android:id="@+id/widget_today_total"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-medium"
-                android:maxLines="1"
-                android:text="—"
-                android:textColor="#FFFFFF"
-                android:textSize="21sp" />
-
-            <ProgressBar
-                android:id="@+id/widget_today_progress"
-                style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="match_parent"
-                android:layout_height="6dp"
-                android:indeterminate="false"
-                android:max="1000"
-                android:progress="500"
-                android:progressDrawable="@drawable/wattwise_widget_progress_today" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_marginStart="14dp"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/widget_yesterday_status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-medium"
-                android:text="YESTERDAY"
-                android:textColor="#D9E0E5"
-                android:textSize="10sp" />
-
-            <TextView
-                android:id="@+id/widget_yesterday_total"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-medium"
-                android:maxLines="1"
-                android:text="—"
-                android:textColor="#FFFFFF"
-                android:textSize="21sp" />
-
-            <ProgressBar
-                android:id="@+id/widget_yesterday_progress"
-                style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="match_parent"
-                android:layout_height="6dp"
-                android:indeterminate="false"
-                android:max="1000"
-                android:progress="500"
-                android:progressDrawable="@drawable/wattwise_widget_progress_yesterday" />
-        </LinearLayout>
+        <TextView
+            android:id="@+id/widget_today_total"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif"
+            android:maxLines="1"
+            android:text="12.4 kWh"
+            android:textColor="#AAB4BC"
+            android:textSize="10sp" />
     </LinearLayout>
+
+    <ProgressBar
+        android:id="@+id/widget_today_progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="8dp"
+        android:layout_marginTop="4dp"
+        android:indeterminate="false"
+        android:max="1000"
+        android:progress="780"
+        android:progressDrawable="@drawable/wattwise_widget_progress_today" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="11dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/widget_yesterday_status"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="sans-serif-medium"
+            android:text="YESTERDAY’S TOTAL:"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp" />
+
+        <TextView
+            android:id="@+id/widget_yesterday_total"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif"
+            android:maxLines="1"
+            android:text="15.8 kWh"
+            android:textColor="#AAB4BC"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <ProgressBar
+        android:id="@+id/widget_yesterday_progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="8dp"
+        android:layout_marginTop="4dp"
+        android:indeterminate="false"
+        android:max="1000"
+        android:progress="1000"
+        android:progressDrawable="@drawable/wattwise_widget_progress_yesterday" />
 
     <TextView
         android:id="@+id/widget_difference"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="7dp"
-        android:fontFamily="sans-serif"
-        android:text="Difference: Comparison unavailable"
-        android:textColor="#AAB4BC"
+        android:gravity="end"
+        android:text="Difference: -3.4 kWh (Lower) ↓"
+        android:textColor="#35EF88"
         android:textSize="9sp" />
-
-    <TextView
-        android:id="@+id/widget_usage_note"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:text="Based on your saved appliance usage"
-        android:textColor="#7F8A93"
-        android:textSize="8sp" />
 </LinearLayout>
