@@ -7,52 +7,177 @@
     android:orientation="vertical"
     android:padding="10dp">
 
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="sans-serif-medium"
-        android:letterSpacing="0.05"
-        android:text="WATTWISE"
-        android:textColor="#AAB4BC"
-        android:textSize="9sp" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:text="ϟ"
+            android:textColor="#35EF88"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="3dp"
+            android:layout_weight="1"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.04"
+            android:text="WATTWISE"
+            android:textColor="#AAB4BC"
+            android:textSize="7sp" />
+
+        <TextView
+            android:layout_width="14dp"
+            android:layout_height="4dp"
+            android:background="@drawable/wattwise_widget_indicator" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="4dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:text="TODAY:"
+                android:textColor="#FFFFFF"
+                android:textSize="8sp" />
+
+            <TextView
+                android:id="@+id/widget_today_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:text="12.4"
+                android:textColor="#FFFFFF"
+                android:textSize="25sp" />
+
+            <TextView
+                android:id="@+id/widget_difference"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:maxLines="2"
+                android:text="-3.4 kWh lower ↓"
+                android:textColor="#35EF88"
+                android:textSize="7sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:gravity="bottom|center_horizontal"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="22dp"
+                android:layout_height="wrap_content"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/widget_yesterday_footer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:text="15.8"
+                    android:textColor="#AAB4BC"
+                    android:textSize="6sp" />
+
+                <FrameLayout
+                    android:layout_width="10dp"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="2dp"
+                    android:background="@drawable/wattwise_widget_progress_track">
+
+                    <TextView
+                        android:id="@+id/widget_yesterday_bar_fill"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:layout_gravity="bottom"
+                        android:background="@drawable/wattwise_widget_bar_yesterday" />
+                </FrameLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:gravity="center"
+                    android:text="YES"
+                    android:textColor="#AAB4BC"
+                    android:textSize="6sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="22dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="3dp"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/widget_today_footer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:text="12.4"
+                    android:textColor="#35EF88"
+                    android:textSize="6sp" />
+
+                <FrameLayout
+                    android:layout_width="10dp"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="2dp"
+                    android:background="@drawable/wattwise_widget_progress_track">
+
+                    <TextView
+                        android:id="@+id/widget_today_bar_fill"
+                        android:layout_width="match_parent"
+                        android:layout_height="34dp"
+                        android:layout_gravity="bottom"
+                        android:background="@drawable/wattwise_widget_bar_today" />
+                </FrameLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:gravity="center"
+                    android:text="TOY"
+                    android:textColor="#35EF88"
+                    android:textSize="6sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
 
     <TextView
-        android:id="@+id/widget_today_status"
+        android:id="@+id/widget_usage_note"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:fontFamily="sans-serif-medium"
-        android:text="TODAY"
-        android:textColor="#FFFFFF"
-        android:textSize="9sp" />
-
-    <TextView
-        android:id="@+id/widget_today_total"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="sans-serif-medium"
+        android:gravity="center"
         android:maxLines="1"
-        android:text="—"
-        android:textColor="#FFFFFF"
-        android:textSize="19sp" />
-
-    <TextView
-        android:id="@+id/widget_yesterday_status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:fontFamily="sans-serif-medium"
-        android:text="YESTERDAY"
-        android:textColor="#D9E0E5"
-        android:textSize="8sp" />
-
-    <TextView
-        android:id="@+id/widget_yesterday_total"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="sans-serif-medium"
-        android:maxLines="1"
-        android:text="—"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp" />
+        android:text="Estimated from saved appliance use"
+        android:textColor="#7F8A93"
+        android:textSize="6sp" />
 </LinearLayout>

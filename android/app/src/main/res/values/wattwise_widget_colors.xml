@@ -2,4 +2,5 @@
 <resources>
     <color name="widget_mint">#39D98A</color>
     <color name="widget_neutral">#AAB4BC</color>
+    <color name="widget_alert">#F4B860</color>
 </resources>
