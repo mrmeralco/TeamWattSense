@@ -34,6 +34,56 @@ class _ScanBillScreenState extends State<ScanBillScreen> {
   bool picking = false;
   String money(double n) =>
       NumberFormat.currency(locale: 'en_PH', symbol: '₱').format(n);
+
+  Future<void> showBillArchive(List<Bill> bills) async {
+    final archivedBills = bills.toList()
+      ..sort((a, b) => b.periodEnd.compareTo(a.periodEnd));
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * 0.72,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                child: Text('Previous scanned bills',
+                    style: Theme.of(sheetContext).textTheme.titleLarge),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  itemCount: archivedBills.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final bill = archivedBills[index];
+                    return SurfaceCard(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: ListTile(
+                        leading: const Icon(Icons.receipt_long, color: green),
+                        title: Text(DateFormat.yMMMM().format(bill.periodEnd)),
+                        subtitle: Text(
+                            '${DateFormat.yMMMd().format(bill.periodEnd)} • ${NumberFormat('#,##0.##').format(bill.consumptionKwh)} kWh'),
+                        trailing: Text(money(bill.totalAmount)),
+                        onTap: () {
+                          setState(() => selectedId = bill.id);
+                          Navigator.pop(sheetContext);
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> upload() async {
     if (picking) return;
     setState(() => picking = true);
@@ -112,7 +162,8 @@ class _ScanBillScreenState extends State<ScanBillScreen> {
           else ...[
             SurfaceCard(
                 padding: const EdgeInsets.all(12),
-                child: Row(children: [
+                child: Column(children: [
+                  Row(children: [
                   if (b.sourceImage != null)
                     ClipRRect(
                         borderRadius: BorderRadius.circular(4),
@@ -151,6 +202,14 @@ class _ScanBillScreenState extends State<ScanBillScreen> {
                                   BillReviewForm(controller: c, bill: b))),
                       child: Text(c.t('Edit bill'),
                           style: const TextStyle(fontSize: 10))),
+                ]),
+                Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                        onPressed: () => showBillArchive(bills),
+                        icon: const Icon(Icons.history, size: 16),
+                        label: const Text('View previous scanned bills',
+                            style: TextStyle(fontSize: 11)))),
                 ])),
             const SizedBox(height: 12),
             Container(
@@ -202,6 +261,19 @@ class _ScanBillScreenState extends State<ScanBillScreen> {
                                   ])),
                         ]))),
             const SizedBox(height: 12),
+            if (bills.length > 1) ...[
+              DropdownButtonFormField<String>(
+                  initialValue: b.id,
+                  decoration: const InputDecoration(labelText: 'Saved bills'),
+                  items: bills
+                      .map((v) => DropdownMenuItem(
+                          value: v.id,
+                          child: Text(
+                              '${DateFormat.yMMMd().format(v.periodEnd)} • ${money(v.totalAmount)}')))
+                      .toList(),
+                  onChanged: (id) => setState(() => selectedId = id)),
+              const SizedBox(height: 12),
+            ],
             SurfaceCard(
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,22 +298,34 @@ class _ScanBillScreenState extends State<ScanBillScreen> {
                           CustomPaint(
                               size: const Size(124, 124),
                               painter: ChargesPainter(b.charges)),
-                          SizedBox(
-                              width: 80,
+                          Container(
+                              width: 72,
+                              height: 72,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 5),
+                              decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.surface,
+                                  shape: BoxShape.circle),
                               child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     FittedBox(
+                                        fit: BoxFit.scaleDown,
                                         child: Text(
                                             money(b.charges.fold(
                                                 0.0,
                                                 (s, c) =>
                                                     s + math.max(0, c.amount))),
+                                            textAlign: TextAlign.center,
+                                            maxLines: 1,
                                             style: const TextStyle(
-                                                fontSize: 11,
+                                                fontSize: 10,
                                                 fontWeight: FontWeight.w700))),
+                                    const SizedBox(height: 2),
                                     const Text('Listed charges',
-                                        style: TextStyle(fontSize: 9))
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(fontSize: 8))
                                   ]))
                         ])),
                     const SizedBox(width: 20),
@@ -323,7 +407,7 @@ class _ScanBillScreenState extends State<ScanBillScreen> {
                         const SizedBox(height: 8),
                         Text(
                             b.consumptionKwh > 0
-                                ? '≈ ${money(b.totalAmount / b.consumptionKwh)} per kWh'
+                                ? '≈ ${money(b.effectiveRatePerKwh)} per kWh'
                                 : 'Not available for zero consumption',
                             style: const TextStyle(
                                 fontSize: 16,
@@ -348,7 +432,8 @@ class _ScanBillScreenState extends State<ScanBillScreen> {
                   ]),
                   const SizedBox(height: 16),
                   Text(
-                      '${c.appliances.length} appliance entries estimate ${c.monthlyKwh.toStringAsFixed(1)} kWh/month. Your reviewed bill records ${b.consumptionKwh} kWh. Different billing periods and actual usage can explain differences.',
+                      b.insights ??
+                          '${c.appliances.length} appliance entries estimate ${c.monthlyKwh.toStringAsFixed(1)} kWh/month. Your reviewed bill records ${b.consumptionKwh} kWh. Different billing periods and actual usage can explain differences.',
                       style: const TextStyle(fontSize: 12, height: 1.5)),
                   const SizedBox(height: 16),
                   Row(children: [
@@ -356,9 +441,10 @@ class _ScanBillScreenState extends State<ScanBillScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                         child: Text(
-                            c.pop
-                                ? 'POP is enabled in your preferences. Ask Mira about your plan; confirm its actual hours and rates on your bill.'
-                                : 'Review high-wattage appliances and daily hours to find ways to save.',
+                            b.savingsInsight ??
+                                (c.pop
+                                    ? 'POP is enabled in your preferences. Ask Mira about your plan; confirm its actual hours and rates on your bill.'
+                                    : 'Review high-wattage appliances and daily hours to find ways to save.'),
                             style: TextStyle(
                                 fontSize: 12, height: 1.5, color: muted)))
                   ]),
@@ -371,17 +457,6 @@ class _ScanBillScreenState extends State<ScanBillScreen> {
                 onPressed: picking ? null : upload,
                 icon: const Icon(Icons.upload_file),
                 label: Text(c.t('Upload a bill'))),
-            if (bills.length > 1)
-              DropdownButtonFormField<String>(
-                  initialValue: b.id,
-                  decoration: const InputDecoration(labelText: 'Saved bills'),
-                  items: bills
-                      .map((v) => DropdownMenuItem(
-                          value: v.id,
-                          child: Text(
-                              '${DateFormat.yMMMd().format(v.periodEnd)} • ${money(v.totalAmount)}')))
-                      .toList(),
-                  onChanged: (id) => setState(() => selectedId = id)),
           ]
         ]);
   }
