@@ -22,7 +22,45 @@ class _ApplianceFormState extends State<ApplianceForm> {
   final _form = GlobalKey<FormState>();
   final _catalog = ApplianceCatalogRepository();
   late final TextEditingController name, watts, dailyHours;
+  TimeOfDay? turnedOnAt, turnedOffAt;
   bool busy = false;
+
+  String _dateKey(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+  void _updateSessionDuration() {
+    final start = turnedOnAt;
+    final stop = turnedOffAt;
+    if (start == null || stop == null) {
+      dailyHours.clear();
+      return;
+    }
+    final startMinute = start.hour * 60 + start.minute;
+    var stopMinute = stop.hour * 60 + stop.minute;
+    if (stopMinute > startMinute) {
+      dailyHours.text = ((stopMinute - startMinute) / 60).toStringAsFixed(2);
+    } else {
+      dailyHours.clear();
+    }
+  }
+
+  Widget _sessionTimeField(BuildContext context, String label, TimeOfDay? value,
+      ValueChanged<TimeOfDay> onChanged) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 18),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: busy ? null : () async {
+              final picked = await showTimePicker(context: context, initialTime: value ?? TimeOfDay.now());
+              if (picked != null) onChanged(picked);
+            },
+            icon: const Icon(Icons.access_time),
+            label: Text(value?.format(context) ?? 'Select time'),
+          ),
+        ]),
+      );
   @override
   void initState() {
     super.initState();
@@ -39,6 +77,12 @@ class _ApplianceFormState extends State<ApplianceForm> {
             e.date.day == date.day).toList();
     dailyHours = TextEditingController(
         text: entries.isEmpty ? '' : entries.first.hours.toString());
+    final session = a == null ? null : widget.controller.popUsageSessions['${a.id}:${_dateKey(date)}'];
+    if (session != null) {
+      turnedOnAt = TimeOfDay.fromDateTime(session['start']!);
+      turnedOffAt = TimeOfDay.fromDateTime(session['stop']!);
+      dailyHours.text = (session['stop']!.difference(session['start']!).inMinutes / 60).toStringAsFixed(2);
+    }
   }
 
   @override
@@ -51,6 +95,21 @@ class _ApplianceFormState extends State<ApplianceForm> {
 
   Future<void> save() async {
     if (busy || !_form.currentState!.validate()) return;
+    final date = widget.usageDate ?? DateTime.now();
+    final popDay = widget.controller.popForDate(date);
+    if (popDay) {
+      if (turnedOnAt == null || turnedOffAt == null) {
+        showFailure(context, StateError('Enter when the appliance was turned on and off.'));
+        return;
+      }
+      final start = DateTime(date.year, date.month, date.day, turnedOnAt!.hour, turnedOnAt!.minute);
+      final stop = DateTime(date.year, date.month, date.day, turnedOffAt!.hour, turnedOffAt!.minute);
+      if (!stop.isAfter(start)) {
+        showFailure(context, StateError('The off time must be later than the on time on the selected day.'));
+        return;
+      }
+      dailyHours.text = (stop.difference(start).inMinutes / 60).toStringAsFixed(2);
+    }
     setState(() => busy = true);
     try {
       final appliance = Appliance(
@@ -61,7 +120,6 @@ class _ApplianceFormState extends State<ApplianceForm> {
           daysPerMonth: widget.appliance?.daysPerMonth ?? 30,
           quantity: widget.appliance?.quantity ?? 1);
       await widget.controller.saveAppliance(appliance);
-      final date = widget.usageDate ?? DateTime.now();
       await widget.controller.saveDailyUsages([
         DailyUsage(
             applianceId: appliance.id,
@@ -70,6 +128,11 @@ class _ApplianceFormState extends State<ApplianceForm> {
             watts: appliance.watts,
             quantity: appliance.quantity)
       ]);
+      if (popDay) {
+        final start = DateTime(date.year, date.month, date.day, turnedOnAt!.hour, turnedOnAt!.minute);
+        final stop = DateTime(date.year, date.month, date.day, turnedOffAt!.hour, turnedOffAt!.minute);
+        await widget.controller.savePopUsageSession(appliance.id, date, start, stop);
+      }
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) showFailure(context, e);
@@ -81,6 +144,7 @@ class _ApplianceFormState extends State<ApplianceForm> {
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
+    final popDay = c.popForDate(widget.usageDate ?? DateTime.now());
     final dailyEstimate = (double.tryParse(watts.text) ?? 0) *
         (double.tryParse(dailyHours.text) ?? 0) / 1000;
     Widget field(String label, TextEditingController input, String asset,
@@ -231,8 +295,21 @@ class _ApplianceFormState extends State<ApplianceForm> {
                       applianceNameInput(),
                       field('Power rating (Wattage)', watts, '44_41_imgPower',
                           unit: 'W', max: 1000000),
-                      field('Hours used per day', dailyHours, '44_41_imgClock',
-                          unit: 'hours', max: 24),
+                      if (popDay) ...[
+                        Text(c.t('POP usage time (estimate only)'),
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        _sessionTimeField(context, c.t('Turned on at'), turnedOnAt,
+                            (value) => setState(() { turnedOnAt = value; _updateSessionDuration(); })),
+                        _sessionTimeField(context, c.t('Turned off at'), turnedOffAt,
+                            (value) => setState(() { turnedOffAt = value; _updateSessionDuration(); })),
+                        Text('${c.t('Hours used per day')}: ${dailyHours.text.isEmpty ? '—' : dailyHours.text}',
+                            style: const TextStyle(fontSize: 12)),
+                        Text(c.t('Enter one on/off interval for this appliance on the selected date.'),
+                            style: const TextStyle(fontSize: 11)),
+                      ] else
+                        field('Hours used per day', dailyHours, '44_41_imgClock',
+                            unit: 'hours', max: 24),
                       SurfaceCard(
                           color: c.dark ? null : paleGreen,
                           child: Row(children: [
