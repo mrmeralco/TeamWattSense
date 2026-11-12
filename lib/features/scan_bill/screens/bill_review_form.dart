@@ -1,3 +1,5 @@
+import '../services/firebase_bill_reader.dart';
+import '../../../shared/firebase/ai_failure.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -41,6 +43,72 @@ class _BillReviewFormState extends State<BillReviewForm> {
   late final List<TextEditingController> charges;
   late DateTime period, due;
   bool busy = false;
+  String? scanMessage;
+
+  Future<void> scan() async {
+    final image = widget.image ?? widget.bill?.sourceImage;
+    if (busy || image == null) return;
+    setState(() {
+      busy = true;
+      scanMessage = 'Reading your bill…';
+    });
+    try {
+      final data = await FirebaseBillReader()
+          .read(image, chargeTypes.map((c) => c.$1).toList());
+      if (!mounted) return;
+      String number(dynamic value, {bool signed = false}) {
+        if (value is! num ||
+            !value.isFinite ||
+            value.abs() > 1e12 ||
+            (!signed && value < 0)) {
+          return '';
+        }
+        return value.toString();
+      }
+
+      DateTime? date(dynamic value) {
+        if (value is! String) return null;
+        final parsed = DateTime.tryParse(value);
+        if (parsed == null ||
+            parsed.year < 2000 ||
+            parsed.year > 2100 ||
+            parsed.toIso8601String().substring(0, 10) != value) {
+          return null;
+        }
+        return parsed;
+      }
+
+      setState(() {
+        usage.text = number(data['consumptionKwh']);
+        amount.text = number(data['totalAmount']);
+        final periodRead = date(data['periodEnd']);
+        final dueRead = date(data['dueDate']);
+        if (periodRead != null) period = periodRead;
+        if (dueRead != null) due = dueRead;
+        final values = data['charges'];
+        for (var i = 0; i < charges.length; i++) {
+          charges[i].text = values is Map
+              ? number(values[chargeTypes[i].$1], signed: true)
+              : '';
+        }
+        scanMessage =
+            'Review every value before saving. Blank amounts could not be read.'
+            '${periodRead == null ? ' Billing period was not read: select it manually.' : ''}'
+            '${dueRead == null ? ' Due date was not read: select it manually.' : ''}';
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          scanMessage = error is FormatException
+              ? error.message
+              : firebaseAiFailureMessage(error);
+        });
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -144,7 +212,22 @@ class _BillReviewFormState extends State<BillReviewForm> {
                       ],
                       const SurfaceCard(
                           child: Text(
-                              'Automatic bill extraction is not connected yet. Enter or correct the details from your bill below. Only reviewed details are shared with Mira.')),
+                              'Read bill with AI sends this image to Firebase AI for extraction. Check all results before saving. You can also enter details manually offline.')),
+                      if (image != null) ...[
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: busy ? null : scan,
+                          icon: const Icon(Icons.document_scanner_outlined),
+                          label:
+                              Text(busy ? 'Please wait…' : 'Read bill with AI'),
+                        ),
+                        if (busy) const LinearProgressIndicator(),
+                        if (scanMessage != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: SelectableText(scanMessage!),
+                          ),
+                      ],
                       const SizedBox(height: 20),
                       for (final isPeriod in [true, false])
                         ListTile(

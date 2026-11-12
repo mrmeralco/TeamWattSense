@@ -7,10 +7,11 @@ import 'mira_context_provider.dart';
 
 class FirebaseMiraService {
   FirebaseMiraService(FirebaseApp app, this.contextProvider)
-      : _model = FirebaseAI.googleAI(app: app).generativeModel(
+      : _model = FirebaseAI.agentPlatform(app: app, location: 'global')
+            .generativeModel(
           model: const String.fromEnvironment(
             'MIRA_MODEL',
-            defaultValue: 'gemini-2.5-flash',
+            defaultValue: 'gemini-3.8-flash',
           ),
           systemInstruction: Content.system(
             'You are Mira, WattWise\'s electricity assistant. Explain electricity usage '
