@@ -45,17 +45,23 @@ class _ApplianceFormState extends State<ApplianceForm> {
   }
 
   Widget _sessionTimeField(BuildContext context, String label, TimeOfDay? value,
-      ValueChanged<TimeOfDay> onChanged) =>
+          ValueChanged<TimeOfDay> onChanged) =>
       Padding(
         padding: const EdgeInsets.only(bottom: 18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            onPressed: busy ? null : () async {
-              final picked = await showTimePicker(context: context, initialTime: value ?? TimeOfDay.now());
-              if (picked != null) onChanged(picked);
-            },
+            onPressed: busy
+                ? null
+                : () async {
+                    final picked = await showTimePicker(
+                        context: context,
+                        initialTime: value ?? TimeOfDay.now());
+                    if (picked != null) onChanged(picked);
+                  },
             icon: const Icon(Icons.access_time),
             label: Text(value?.format(context) ?? 'Select time'),
           ),
@@ -70,18 +76,24 @@ class _ApplianceFormState extends State<ApplianceForm> {
     final date = widget.usageDate ?? DateTime.now();
     final entries = a == null
         ? <DailyUsage>[]
-        : widget.controller.dailyUsages.where((e) =>
-            e.applianceId == a.id &&
-            e.date.year == date.year &&
-            e.date.month == date.month &&
-            e.date.day == date.day).toList();
+        : widget.controller.dailyUsages
+            .where((e) =>
+                e.applianceId == a.id &&
+                e.date.year == date.year &&
+                e.date.month == date.month &&
+                e.date.day == date.day)
+            .toList();
     dailyHours = TextEditingController(
         text: entries.isEmpty ? '' : entries.first.hours.toString());
-    final session = a == null ? null : widget.controller.popUsageSessions['${a.id}:${_dateKey(date)}'];
+    final session = a == null
+        ? null
+        : widget.controller.popUsageSessions['${a.id}:${_dateKey(date)}'];
     if (session != null) {
       turnedOnAt = TimeOfDay.fromDateTime(session['start']!);
       turnedOffAt = TimeOfDay.fromDateTime(session['stop']!);
-      dailyHours.text = (session['stop']!.difference(session['start']!).inMinutes / 60).toStringAsFixed(2);
+      dailyHours.text =
+          (session['stop']!.difference(session['start']!).inMinutes / 60)
+              .toStringAsFixed(2);
     }
   }
 
@@ -99,21 +111,29 @@ class _ApplianceFormState extends State<ApplianceForm> {
     final popDay = widget.controller.popForDate(date);
     if (popDay) {
       if (turnedOnAt == null || turnedOffAt == null) {
-        showFailure(context, StateError('Enter when the appliance was turned on and off.'));
+        showFailure(context,
+            StateError('Enter when the appliance was turned on and off.'));
         return;
       }
-      final start = DateTime(date.year, date.month, date.day, turnedOnAt!.hour, turnedOnAt!.minute);
-      final stop = DateTime(date.year, date.month, date.day, turnedOffAt!.hour, turnedOffAt!.minute);
+      final start = DateTime(date.year, date.month, date.day, turnedOnAt!.hour,
+          turnedOnAt!.minute);
+      final stop = DateTime(date.year, date.month, date.day, turnedOffAt!.hour,
+          turnedOffAt!.minute);
       if (!stop.isAfter(start)) {
-        showFailure(context, StateError('The off time must be later than the on time on the selected day.'));
+        showFailure(
+            context,
+            StateError(
+                'The off time must be later than the on time on the selected day.'));
         return;
       }
-      dailyHours.text = (stop.difference(start).inMinutes / 60).toStringAsFixed(2);
+      dailyHours.text =
+          (stop.difference(start).inMinutes / 60).toStringAsFixed(2);
     }
     setState(() => busy = true);
     try {
       final appliance = Appliance(
-          id: widget.appliance?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+          id: widget.appliance?.id ??
+              DateTime.now().microsecondsSinceEpoch.toString(),
           name: name.text.trim(),
           watts: double.parse(watts.text),
           hoursPerDay: double.parse(dailyHours.text),
@@ -129,9 +149,12 @@ class _ApplianceFormState extends State<ApplianceForm> {
             quantity: appliance.quantity)
       ]);
       if (popDay) {
-        final start = DateTime(date.year, date.month, date.day, turnedOnAt!.hour, turnedOnAt!.minute);
-        final stop = DateTime(date.year, date.month, date.day, turnedOffAt!.hour, turnedOffAt!.minute);
-        await widget.controller.savePopUsageSession(appliance.id, date, start, stop);
+        final start = DateTime(date.year, date.month, date.day,
+            turnedOnAt!.hour, turnedOnAt!.minute);
+        final stop = DateTime(date.year, date.month, date.day,
+            turnedOffAt!.hour, turnedOffAt!.minute);
+        await widget.controller
+            .savePopUsageSession(appliance.id, date, start, stop);
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -145,8 +168,25 @@ class _ApplianceFormState extends State<ApplianceForm> {
   Widget build(BuildContext context) {
     final c = widget.controller;
     final popDay = c.popForDate(widget.usageDate ?? DateTime.now());
+    var peakHours = 0.0, offPeakHours = 0.0;
+    if (turnedOnAt != null && turnedOffAt != null) {
+      final day = widget.usageDate ?? DateTime.now();
+      final from = turnedOnAt!.hour * 60 + turnedOnAt!.minute;
+      final to = turnedOffAt!.hour * 60 + turnedOffAt!.minute;
+      for (var minute = from; minute < to; minute++) {
+        final peak = day.weekday == DateTime.sunday
+            ? minute >= 18 * 60 && minute < 20 * 60
+            : minute >= 8 * 60 && minute < 21 * 60;
+        if (peak) {
+          peakHours += 1 / 60;
+        } else {
+          offPeakHours += 1 / 60;
+        }
+      }
+    }
     final dailyEstimate = (double.tryParse(watts.text) ?? 0) *
-        (double.tryParse(dailyHours.text) ?? 0) / 1000;
+        (double.tryParse(dailyHours.text) ?? 0) /
+        1000;
     Widget field(String label, TextEditingController input, String asset,
             {String? unit, double? max, bool integer = false}) =>
         Padding(
@@ -237,7 +277,8 @@ class _ApplianceFormState extends State<ApplianceForm> {
               elevation: 6,
               borderRadius: BorderRadius.circular(12),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 300, maxWidth: 560),
+                constraints:
+                    const BoxConstraints(maxHeight: 300, maxWidth: 560),
                 child: ListView(
                   padding: EdgeInsets.zero,
                   shrinkWrap: true,
@@ -264,6 +305,7 @@ class _ApplianceFormState extends State<ApplianceForm> {
         const SizedBox(height: 24),
       ]);
     }
+
     return Scaffold(
         backgroundColor: c.dark ? null : const Color(0xffeffcf0),
         appBar: AppBar(
@@ -297,18 +339,36 @@ class _ApplianceFormState extends State<ApplianceForm> {
                           unit: 'W', max: 1000000),
                       if (popDay) ...[
                         Text(c.t('POP usage time (estimate only)'),
-                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600)),
                         const SizedBox(height: 8),
-                        _sessionTimeField(context, c.t('Turned on at'), turnedOnAt,
-                            (value) => setState(() { turnedOnAt = value; _updateSessionDuration(); })),
-                        _sessionTimeField(context, c.t('Turned off at'), turnedOffAt,
-                            (value) => setState(() { turnedOffAt = value; _updateSessionDuration(); })),
-                        Text('${c.t('Hours used per day')}: ${dailyHours.text.isEmpty ? '—' : dailyHours.text}',
+                        _sessionTimeField(
+                            context,
+                            c.t('Time turned on'),
+                            turnedOnAt,
+                            (value) => setState(() {
+                                  turnedOnAt = value;
+                                  _updateSessionDuration();
+                                })),
+                        _sessionTimeField(
+                            context,
+                            c.t('Time turned off'),
+                            turnedOffAt,
+                            (value) => setState(() {
+                                  turnedOffAt = value;
+                                  _updateSessionDuration();
+                                })),
+                        Text(
+                            '${c.t('Hours used per day')}: ${dailyHours.text.isEmpty ? '—' : dailyHours.text}',
                             style: const TextStyle(fontSize: 12)),
-                        Text(c.t('Enter one on/off interval for this appliance on the selected date.'),
+                        Text(
+                            'Peak: ${peakHours.toStringAsFixed(2)} h • Off-peak: ${offPeakHours.toStringAsFixed(2)} h'),
+                        Text(
+                            c.t('Enter one on/off interval on the selected date. Off time must be later than on time; split overnight use into separate daily entries.'),
                             style: const TextStyle(fontSize: 11)),
                       ] else
-                        field('Hours used per day', dailyHours, '44_41_imgClock',
+                        field(
+                            'Hours used per day', dailyHours, '44_41_imgClock',
                             unit: 'hours', max: 24),
                       SurfaceCard(
                           color: c.dark ? null : paleGreen,
@@ -328,8 +388,8 @@ class _ApplianceFormState extends State<ApplianceForm> {
                                       style: const TextStyle(
                                           fontSize: 28,
                                           fontWeight: FontWeight.w700)),
-                                  Text(c.t(
-                                      'Based on wattage and hours used per day.'),
+                                  Text(
+                                      c.t('Based on wattage and hours used per day.'),
                                       style: const TextStyle(fontSize: 12))
                                 ]))
                           ])),

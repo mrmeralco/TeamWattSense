@@ -1,3 +1,4 @@
+import 'package:wattwise/features/auth/screens/auth_request_guard.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -8,6 +9,13 @@ import 'package:wattwise/features/auth/screens/auth_screen.dart';
 import 'account_test.dart' show FakeAuth;
 
 void main() {
+  setUp(() {
+    AuthRequestGuard.testReserve = (_) async {};
+  });
+  tearDown(() {
+    AuthRequestGuard.testReserve = null;
+    registrationInProgress = false;
+  });
   testWidgets(
       'Figma account screens render, show passwords, and support smaller screens',
       (tester) async {

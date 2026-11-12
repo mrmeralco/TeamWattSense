@@ -113,36 +113,31 @@ class AppController extends ChangeNotifier {
     return enabled;
   }
 
-  bool get popSwitchValue {
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
-    final pending = popTransitions.where((row) =>
-        DateTime.parse(row['effective_date'] as String).year == tomorrow.year &&
-        DateTime.parse(row['effective_date'] as String).month ==
-            tomorrow.month &&
-        DateTime.parse(row['effective_date'] as String).day == tomorrow.day);
-    return pending.isEmpty
-        ? popForDate(DateTime.now())
-        : (pending.last['enabled'] == 1 || pending.last['enabled'] == true);
-  }
+  bool get popSwitchValue => popForDate(DateTime.now());
 
   Future<void> schedulePopChange(bool enabled,
       {DateTime? effectiveDate}) async {
     final db = database;
     if (db == null) throw StateError('POP storage is unavailable');
-    final selectedDate =
-        effectiveDate ?? DateTime.now().add(const Duration(days: 1));
+    final selectedDate = effectiveDate ?? DateTime.now();
     final day =
         DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
     final key =
         '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-    await db.insert(
-        'pop_transitions',
-        {
-          'effective_date': key,
-          'enabled': enabled ? 1 : 0,
-          'recorded_at': DateTime.now().toIso8601String(),
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.transaction((tx) async {
+      if (effectiveDate == null) {
+        await tx.delete('pop_transitions',
+            where: 'effective_date > ?', whereArgs: [key]);
+      }
+      await tx.insert(
+          'pop_transitions',
+          {
+            'effective_date': key,
+            'enabled': enabled ? 1 : 0,
+            'recorded_at': DateTime.now().toIso8601String(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    });
     popTransitions =
         await db.query('pop_transitions', orderBy: 'effective_date');
     pop = popForDate(DateTime.now());
@@ -224,15 +219,6 @@ class AppController extends ChangeNotifier {
     final duration = stoppedAt.difference(startedAt).inMinutes / 60.0;
     final dateKey =
         '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-    await db.insert(
-        'pop_usage_sessions',
-        {
-          'appliance_id': applianceId,
-          'usage_date': dateKey,
-          'started_at': startedAt.toIso8601String(),
-          'stopped_at': stoppedAt.toIso8601String(),
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace);
     var peakMinutes = 0;
     var offPeakMinutes = 0;
     for (var minute = 0;
@@ -254,6 +240,26 @@ class AppController extends ChangeNotifier {
       'peak': peakMinutes / 60.0,
       'offPeak': offPeakMinutes / 60.0
     };
+    await db.transaction((tx) async {
+      await tx.insert(
+          'pop_usage_sessions',
+          {
+            'appliance_id': applianceId,
+            'usage_date': dateKey,
+            'started_at': startedAt.toIso8601String(),
+            'stopped_at': stoppedAt.toIso8601String(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
+      await tx.insert(
+          'pop_usage_split',
+          {
+            'appliance_id': applianceId,
+            'usage_date': dateKey,
+            'peak_hours': split['peak'],
+            'off_peak_hours': split['offPeak'],
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    });
     popUsageSessions['$applianceId:$dateKey'] = {
       'start': startedAt,
       'stop': stoppedAt

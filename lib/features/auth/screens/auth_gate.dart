@@ -1,3 +1,4 @@
+import 'auth_request_guard.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../shared/sync/cloud_sync.dart';
 import '../../../shared/sync/sync_store.dart';
@@ -54,7 +55,9 @@ class AuthSessionGate extends StatelessWidget {
                                 'Session unavailable. Return to sign in.')))));
           }
           final user = snapshot.data;
-          if (user == null) return AuthScreen(auth: auth);
+          if (user == null || registrationInProgress) {
+            return AuthScreen(auth: auth);
+          }
           if (!user.emailVerified) {
             return VerificationScreen(key: ValueKey(user.uid), auth: auth);
           }

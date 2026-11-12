@@ -1,3 +1,4 @@
+import 'auth_request_guard.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -53,11 +54,14 @@ class _VerificationScreenState extends State<VerificationScreen>
     setState(() => busy = true);
     sentAt[user.uid] = DateTime.now();
     try {
+      await AuthRequestGuard.reserve('verify_send');
       await user.sendEmailVerification();
       if (mounted) {
         setState(() => message =
             'Verification link sent. Check your inbox and spam folder, open the link, then return here.');
       }
+    } on AuthRequestLimit catch (e) {
+      if (mounted) setState(() => message = e.message);
     } on FirebaseAuthException catch (e) {
       if (mounted) setState(() => message = authErrorMessage(e));
     } catch (_) {
@@ -74,6 +78,7 @@ class _VerificationScreenState extends State<VerificationScreen>
     if (busy) return;
     setState(() => busy = true);
     try {
+      await AuthRequestGuard.reserve('verify_check');
       await widget.auth.currentUser?.reload();
       final user = widget.auth.currentUser;
       if (user?.emailVerified == true) {
@@ -82,6 +87,8 @@ class _VerificationScreenState extends State<VerificationScreen>
         setState(() => message =
             'Not verified yet. Open the link in your email, then tap “I verified my email”.');
       }
+    } on AuthRequestLimit catch (e) {
+      if (mounted) setState(() => message = e.message);
     } on FirebaseAuthException catch (e) {
       if (mounted) setState(() => message = authErrorMessage(e));
     } catch (_) {
