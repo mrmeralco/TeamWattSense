@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+uploads/
+*.log
+
+.dart_tool/
+.flutter-plugins-dependencies
+*.iml
+
