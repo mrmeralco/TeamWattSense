@@ -16,9 +16,9 @@ Future<void> savePolicyAcceptance(Database database) async {
   });
 }
 
-const policyVersion = '2026-11-12';
+const policyVersion = '2026-11-12-cloud-sync';
 const termsText = '''WattWise Terms of Service
-Version: 2026-11-12
+Version: 2026-11-12-cloud-sync
 
 Contact: mirangjoshua@gmail.com
 
@@ -34,13 +34,13 @@ You may stop using WattWise at any time. To request help, account deletion or ex
 
 Material policy updates will require a new acknowledgment in the app.''';
 const privacyText = '''WattWise Privacy Policy
-Version: 2026-11-12
+Version: 2026-11-12-cloud-sync
 
 Privacy contact: mirangjoshua@gmail.com
 
 Account information: Firebase Authentication processes your email address, password, account identifier, verification status and display name to register, authenticate and recover your account. WattWise does not store your password in its SQLite database. Verification and reset emails are delivered through Firebase.
 
-Local information: Appliance names, wattage, quantities, usage logs, reviewed bill details, bill images and preferences are stored in an account-specific database on this device. They are not automatically synced across devices. A policy-version acknowledgment and acceptance time are stored locally for your account. Old data created before accounts existed remains separate and is not automatically assigned to a user.
+Local information: Appliance names, wattage, quantities, usage logs, reviewed bill details, bill images and preferences are stored in an account-specific database on this device. After accepting this policy, account appliances, usage and POP records, saved bills including images, and display/rate preferences sync to Google Cloud Firestore under your Firebase user ID. This can include personal information printed on saved bills. Sign in to the same verified account on another device to restore successfully synced records. Sync runs while the app is open; offline changes wait locally. Chat history, passwords, local AI request counters and policy acknowledgements are not synced. A policy-version acknowledgment and acceptance time are stored locally for your account. Old data created before accounts existed remains separate and is not automatically assigned to a user.
 
 AI processing: When you ask Mira a question, WattWise sends your question, a limited recent conversation, appliance details, summarized usage and reviewed bill information to Google Cloud through Firebase AI Logic. When you choose Read bill with AI, the selected bill image is sent to that service and may include personal information printed on the image. Use only bills you are entitled to share. AI processing is optional; manual appliance entry and bill review remain available. Chat content is kept in the active app session and is cleared when the session is replaced; it is not saved as local chat history.
 
@@ -48,7 +48,7 @@ Service information: Firebase Authentication, App Check and Google Cloud process
 
 Purposes: Account access, electricity tracking, requested AI assistance, abuse prevention and responding to support requests. No marketing consent is requested by this screen.
 
-Storage and choices: Local records remain until you remove them or clear app storage; signing out keeps them for your next login. Firebase account information remains until the account is deleted. You can edit appliance and bill records in the app, avoid optional AI features, and request access, correction or deletion through mirangjoshua@gmail.com. Clearing the app alone does not delete the Firebase account. Do not email your password or verification link.
+Storage and choices: Local records remain until removed or app storage is cleared. Synced records remain in Firestore across sign-out and reinstalls. In-app deletions propagate when connected; deletion markers remain to prevent old devices restoring deleted records. Interrupted uploads or older image versions may remain in provider storage until cleanup or a deletion request. Signing out does not delete cloud or local records. Firebase account information remains until the account is deleted. You can edit appliance and bill records in the app, avoid optional AI features, and request access, correction or deletion through mirangjoshua@gmail.com. Clearing the app alone does not delete the Firebase account. Do not email your password or verification link.
 
 Security and updates: Account separation and App Check reduce unauthorized access, but no device or service is risk-free. Keep your phone protected. Policy changes will be shown in the app with a new version.''';
 

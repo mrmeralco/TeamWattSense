@@ -34,11 +34,17 @@ class SettingsScreen extends StatelessWidget {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text(c.t(value ? 'Enable POP estimates?' : 'Disable POP estimates?')),
-          content: Text(c.t('This takes effect tomorrow (${applies.month}/${applies.day}/${applies.year}). Existing daily usage and overview history will not be erased.')),
+          title: Text(
+              c.t(value ? 'Enable POP estimates?' : 'Disable POP estimates?')),
+          content: Text(c.t(
+              'This takes effect tomorrow (${applies.month}/${applies.day}/${applies.year}). Existing daily usage and overview history will not be erased.')),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(c.t('Cancel'))),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(c.t('Confirm'))),
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(c.t('Cancel'))),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(c.t('Confirm'))),
           ],
         ),
       );
@@ -61,22 +67,53 @@ class SettingsScreen extends StatelessWidget {
         context: context,
         builder: (context) => AlertDialog(
           title: Text(c.t('POP generation rates')),
-          content: Form(key: key, child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextFormField(controller: peak, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: c.t('Peak rate (PHP/kWh)')), validator: _rateValidator),
-            TextFormField(controller: offPeak, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: c.t('Off-peak rate (PHP/kWh)')), validator: _rateValidator),
-            TextFormField(controller: source, decoration: InputDecoration(labelText: c.t('Rate source'))),
-            const SizedBox(height: 8),
-            Text('${c.t('Effective month')}: $month • ${c.t('Estimate only')}', style: const TextStyle(fontSize: 12)),
-          ])),
+          content: Form(
+              key: key,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextFormField(
+                    controller: peak,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration:
+                        InputDecoration(labelText: c.t('Peak rate (PHP/kWh)')),
+                    validator: _rateValidator),
+                TextFormField(
+                    controller: offPeak,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                        labelText: c.t('Off-peak rate (PHP/kWh)')),
+                    validator: _rateValidator),
+                TextFormField(
+                    controller: source,
+                    decoration: InputDecoration(labelText: c.t('Rate source'))),
+                const SizedBox(height: 8),
+                Text(
+                    '${c.t('Effective month')}: $month • ${c.t('Estimate only')}',
+                    style: const TextStyle(fontSize: 12)),
+              ])),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: Text(c.t('Cancel'))),
-            FilledButton(onPressed: () { if (key.currentState!.validate()) Navigator.pop(context, [peak.text, offPeak.text, source.text]); }, child: Text(c.t('Save rates'))),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(c.t('Cancel'))),
+            FilledButton(
+                onPressed: () {
+                  if (key.currentState!.validate()) {
+                    Navigator.pop(
+                        context, [peak.text, offPeak.text, source.text]);
+                  }
+                },
+                child: Text(c.t('Save rates'))),
           ],
         ),
       );
       if (result == null) return;
       try {
-        await c.savePopRates(effectiveMonth: month, peakRate: double.parse(result[0]), offPeakRate: double.parse(result[1]), source: result[2]);
+        await c.savePopRates(
+            effectiveMonth: month,
+            peakRate: double.parse(result[0]),
+            offPeakRate: double.parse(result[1]),
+            source: result[2]);
       } catch (e) {
         if (context.mounted) showFailure(context, e);
       }
@@ -120,7 +157,12 @@ class SettingsScreen extends StatelessWidget {
                           TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   Text(accountEmail ?? 'Signed in'),
                   const Text(
-                      'Appliances and bills are saved for this account on this device. Cloud sync is not enabled.'),
+                      'Appliances, usage, bills and saved bill images sync privately with this account. Offline changes upload when connected. Keep the app open until sync finishes.'),
+                  Text(c.cloudSyncStatus),
+                  TextButton.icon(
+                      onPressed: c.syncNow,
+                      icon: const Icon(Icons.sync),
+                      label: const Text('Sync now')),
                   TextButton.icon(
                       onPressed: onSignOut,
                       icon: const Icon(Icons.logout),
@@ -160,9 +202,20 @@ class SettingsScreen extends StatelessWidget {
                           style: const TextStyle(fontSize: 14))),
                   Switch(value: c.popSwitchValue, onChanged: changePop)
                 ]),
-                Text(c.t('POP rates affect generation estimates only; results are estimates and do not replace your full bill rate.'), style: const TextStyle(fontSize: 12)),
-                TextButton(onPressed: editPopRates, child: Text(c.t('Enter POP rates from bill'))),
-                TextButton(onPressed: () => c.savePopRates(effectiveMonth: '2025-06', peakRate: 8.38, offPeakRate: 4.55, source: 'Meralco reference figures dated 18 June 2025', reference: true), child: Text(c.t('Save June 2025 reference rates'))),
+                Text(
+                    c.t('POP rates affect generation estimates only; results are estimates and do not replace your full bill rate.'),
+                    style: const TextStyle(fontSize: 12)),
+                TextButton(
+                    onPressed: editPopRates,
+                    child: Text(c.t('Enter POP rates from bill'))),
+                TextButton(
+                    onPressed: () => c.savePopRates(
+                        effectiveMonth: '2025-06',
+                        peakRate: 8.38,
+                        offPeakRate: 4.55,
+                        source: 'Meralco reference figures dated 18 June 2025',
+                        reference: true),
+                    child: Text(c.t('Save June 2025 reference rates'))),
                 const SizedBox(height: 8),
                 Text(
                     c.t(

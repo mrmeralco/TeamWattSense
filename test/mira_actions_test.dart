@@ -22,6 +22,17 @@ void main() {
     expect(edit.values['quantity'], 3);
     expect(edit.values['watts'], 60);
     expect(edit.original, fan);
+    final defaults = MiraApplianceAction.parse(
+        {'mode': 'add', 'name': 'Fan', 'days_per_month': 7}, []);
+    expect(defaults.values['days_per_month'], 30);
+    expect(defaults.values['quantity'], 1);
+    const old = Appliance(
+        id: 'old', name: 'Fan', watts: 60, hoursPerDay: 8, daysPerMonth: 15);
+    expect(
+        MiraApplianceAction.parse(
+            {'mode': 'edit', 'applianceId': 'old', 'days_per_month': 7},
+            [old]).values['days_per_month'],
+        15);
     expect(
         MiraApplianceAction.parse({'mode': 'add', 'name': 'Fan'}, [])
             .values
@@ -70,10 +81,10 @@ void main() {
       'name': 'Fan',
       'watts': 60,
       'hours_per_day': 8,
-      'days_per_month': 30,
       'quantity': 2
     }, []);
     await open(tester, c, action);
+    expect(find.text('Days per month'), findsNothing);
     expect(await c.applianceRepository.list(), isEmpty);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
@@ -84,6 +95,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(c.appliances.length, 1);
     expect(c.appliances.single.quantity, 2);
+    expect(c.appliances.single.daysPerMonth, 30);
     expect((await c.applianceRepository.list()).length, 1);
     expect(c.dailyUsages, isEmpty);
   });

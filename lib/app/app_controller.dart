@@ -16,6 +16,14 @@ class AppController extends ChangeNotifier {
   final BillRepository billRepository;
   final DailyUsageRepository? dailyUsageRepository;
   final Database? database;
+  String cloudSyncStatus = 'Cloud sync not connected';
+  Future<void> Function()? syncNow;
+  VoidCallback? onLocalChange;
+  void setCloudSyncStatus(String status) {
+    cloudSyncStatus = status;
+    notifyListeners();
+  }
+
   List<Appliance> appliances = [];
   List<Bill> bills = [];
   List<DailyUsage> dailyUsages = [];
@@ -34,6 +42,7 @@ class AppController extends ChangeNotifier {
     }
     return rate;
   }
+
   String t(String key) => translate(key, language);
   double get monthlyKwh => appliances.fold(0, (sum, a) => sum + a.monthlyKwh);
   double get monthlyHours => appliances.fold(
@@ -50,8 +59,8 @@ class AppController extends ChangeNotifier {
           row['key'] as String: row['value'] as String
       };
       dark = prefs['dark'] == 'true';
-      popTransitions = await db.query('pop_transitions',
-          orderBy: 'effective_date');
+      popTransitions =
+          await db.query('pop_transitions', orderBy: 'effective_date');
       popRates = await db.query('pop_rates', orderBy: 'effective_month');
       popUsageSplits.clear();
       for (final row in await db.query('pop_usage_split')) {
@@ -75,6 +84,7 @@ class AppController extends ChangeNotifier {
       rate = double.tryParse(prefs['rate'] ?? '') ?? 12;
     }
     notifyListeners();
+    onLocalChange?.call();
   }
 
   Future<void> preference(String key, String value) async {
@@ -89,6 +99,7 @@ class AppController extends ChangeNotifier {
         rate = double.parse(value);
     }
     notifyListeners();
+    onLocalChange?.call();
   }
 
   bool popForDate(DateTime date) {
@@ -106,44 +117,61 @@ class AppController extends ChangeNotifier {
     final tomorrow = DateTime.now().add(const Duration(days: 1));
     final pending = popTransitions.where((row) =>
         DateTime.parse(row['effective_date'] as String).year == tomorrow.year &&
-        DateTime.parse(row['effective_date'] as String).month == tomorrow.month &&
+        DateTime.parse(row['effective_date'] as String).month ==
+            tomorrow.month &&
         DateTime.parse(row['effective_date'] as String).day == tomorrow.day);
-    return pending.isEmpty ? popForDate(DateTime.now()) :
-        (pending.last['enabled'] == 1 || pending.last['enabled'] == true);
+    return pending.isEmpty
+        ? popForDate(DateTime.now())
+        : (pending.last['enabled'] == 1 || pending.last['enabled'] == true);
   }
 
   Future<void> schedulePopChange(bool enabled,
       {DateTime? effectiveDate}) async {
     final db = database;
     if (db == null) throw StateError('POP storage is unavailable');
-    final selectedDate = effectiveDate ?? DateTime.now().add(const Duration(days: 1));
-    final day = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
-    final key = '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-    await db.insert('pop_transitions', {
-      'effective_date': key,
-      'enabled': enabled ? 1 : 0,
-      'recorded_at': DateTime.now().toIso8601String(),
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
-    popTransitions = await db.query('pop_transitions', orderBy: 'effective_date');
+    final selectedDate =
+        effectiveDate ?? DateTime.now().add(const Duration(days: 1));
+    final day =
+        DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final key =
+        '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+    await db.insert(
+        'pop_transitions',
+        {
+          'effective_date': key,
+          'enabled': enabled ? 1 : 0,
+          'recorded_at': DateTime.now().toIso8601String(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace);
+    popTransitions =
+        await db.query('pop_transitions', orderBy: 'effective_date');
     pop = popForDate(DateTime.now());
     notifyListeners();
+    onLocalChange?.call();
   }
 
-  Future<void> savePopRates({required String effectiveMonth,
-      required double peakRate, required double offPeakRate,
-      required String source, bool reference = false}) async {
+  Future<void> savePopRates(
+      {required String effectiveMonth,
+      required double peakRate,
+      required double offPeakRate,
+      required String source,
+      bool reference = false}) async {
     final db = database;
     if (db == null) throw StateError('POP storage is unavailable');
-    await db.insert('pop_rates', {
-      'effective_month': effectiveMonth,
-      'peak_generation_rate': peakRate,
-      'off_peak_generation_rate': offPeakRate,
-      'source': source,
-      'is_reference': reference ? 1 : 0,
-      'recorded_at': DateTime.now().toIso8601String(),
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+        'pop_rates',
+        {
+          'effective_month': effectiveMonth,
+          'peak_generation_rate': peakRate,
+          'off_peak_generation_rate': offPeakRate,
+          'source': source,
+          'is_reference': reference ? 1 : 0,
+          'recorded_at': DateTime.now().toIso8601String(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace);
     popRates = await db.query('pop_rates', orderBy: 'effective_month');
     notifyListeners();
+    onLocalChange?.call();
   }
 
   Future<void> savePopUsageSplit(String applianceId, DateTime date,
@@ -151,18 +179,31 @@ class AppController extends ChangeNotifier {
     final db = database;
     if (db == null) throw StateError('POP storage is unavailable');
     final total = peakHours + offPeakHours;
-    if (!peakHours.isFinite || !offPeakHours.isFinite || peakHours < 0 ||
-        offPeakHours < 0 || total > 24) {
+    if (!peakHours.isFinite ||
+        !offPeakHours.isFinite ||
+        peakHours < 0 ||
+        offPeakHours < 0 ||
+        total > 24) {
       throw ArgumentError('Peak and off-peak hours must total 0 to 24 hours');
     }
     final day = DateTime(date.year, date.month, date.day);
-    final dateKey = '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-    await db.insert('pop_usage_split', {
-      'appliance_id': applianceId, 'usage_date': dateKey,
-      'peak_hours': peakHours, 'off_peak_hours': offPeakHours,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
-    popUsageSplits['$applianceId:$dateKey'] = {'peak': peakHours, 'offPeak': offPeakHours};
+    final dateKey =
+        '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+    await db.insert(
+        'pop_usage_split',
+        {
+          'appliance_id': applianceId,
+          'usage_date': dateKey,
+          'peak_hours': peakHours,
+          'off_peak_hours': offPeakHours,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace);
+    popUsageSplits['$applianceId:$dateKey'] = {
+      'peak': peakHours,
+      'offPeak': offPeakHours
+    };
     notifyListeners();
+    onLocalChange?.call();
   }
 
   Future<double> savePopUsageSession(String applianceId, DateTime date,
@@ -170,33 +211,56 @@ class AppController extends ChangeNotifier {
     final db = database;
     if (db == null) throw StateError('POP storage is unavailable');
     final day = DateTime(date.year, date.month, date.day);
-    if (startedAt.year != day.year || startedAt.month != day.month || startedAt.day != day.day ||
-        stoppedAt.year != day.year || stoppedAt.month != day.month || stoppedAt.day != day.day ||
+    if (startedAt.year != day.year ||
+        startedAt.month != day.month ||
+        startedAt.day != day.day ||
+        stoppedAt.year != day.year ||
+        stoppedAt.month != day.month ||
+        stoppedAt.day != day.day ||
         !stoppedAt.isAfter(startedAt)) {
-      throw ArgumentError('The stop time must be later than the start time on the selected day.');
+      throw ArgumentError(
+          'The stop time must be later than the start time on the selected day.');
     }
     final duration = stoppedAt.difference(startedAt).inMinutes / 60.0;
-    final dateKey = '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-    await db.insert('pop_usage_sessions', {
-      'appliance_id': applianceId, 'usage_date': dateKey,
-      'started_at': startedAt.toIso8601String(),
-      'stopped_at': stoppedAt.toIso8601String(),
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    final dateKey =
+        '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+    await db.insert(
+        'pop_usage_sessions',
+        {
+          'appliance_id': applianceId,
+          'usage_date': dateKey,
+          'started_at': startedAt.toIso8601String(),
+          'stopped_at': stoppedAt.toIso8601String(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace);
     var peakMinutes = 0;
     var offPeakMinutes = 0;
-    for (var minute = 0; minute < stoppedAt.difference(startedAt).inMinutes; minute++) {
+    for (var minute = 0;
+        minute < stoppedAt.difference(startedAt).inMinutes;
+        minute++) {
       final at = startedAt.add(Duration(minutes: minute));
       final minuteOfDay = at.hour * 60 + at.minute;
       final isSunday = at.weekday == DateTime.sunday;
       final peak = isSunday
           ? minuteOfDay >= 18 * 60 && minuteOfDay < 20 * 60
           : minuteOfDay >= 8 * 60 && minuteOfDay < 21 * 60;
-      if (peak) { peakMinutes++; } else { offPeakMinutes++; }
+      if (peak) {
+        peakMinutes++;
+      } else {
+        offPeakMinutes++;
+      }
     }
-    final split = {'peak': peakMinutes / 60.0, 'offPeak': offPeakMinutes / 60.0};
-    popUsageSessions['$applianceId:$dateKey'] = {'start': startedAt, 'stop': stoppedAt};
+    final split = {
+      'peak': peakMinutes / 60.0,
+      'offPeak': offPeakMinutes / 60.0
+    };
+    popUsageSessions['$applianceId:$dateKey'] = {
+      'start': startedAt,
+      'stop': stoppedAt
+    };
     popUsageSplits['$applianceId:$dateKey'] = split;
     notifyListeners();
+    onLocalChange?.call();
     return duration;
   }
 
@@ -205,20 +269,26 @@ class AppController extends ChangeNotifier {
     var foundSplit = false;
     for (final entry in dailyUsages) {
       final day = DateTime(entry.date.year, entry.date.month, entry.date.day);
-      if (day.isBefore(from) || day.isAfter(through) || !popForDate(day)) continue;
+      if (day.isBefore(from) || day.isAfter(through) || !popForDate(day)) {
+        continue;
+      }
       final split = popUsageSplits['${entry.applianceId}:${entry.dateKey}'];
       if (split == null) continue;
       final month = '${day.year}-${day.month.toString().padLeft(2, '0')}';
-      final applicable = popRates.where((row) =>
-          (row['effective_month'] as String).compareTo(month) <= 0).toList()
+      final applicable = popRates
+          .where(
+              (row) => (row['effective_month'] as String).compareTo(month) <= 0)
+          .toList()
         ..sort((a, b) => (b['effective_month'] as String)
             .compareTo(a['effective_month'] as String));
       if (applicable.isEmpty) continue;
       final rate = applicable.first;
       final peakKwh = entry.watts / 1000 * split['peak']! * entry.quantity;
-      final offPeakKwh = entry.watts / 1000 * split['offPeak']! * entry.quantity;
+      final offPeakKwh =
+          entry.watts / 1000 * split['offPeak']! * entry.quantity;
       total += peakKwh * (rate['peak_generation_rate'] as num).toDouble();
-      total += offPeakKwh * (rate['off_peak_generation_rate'] as num).toDouble();
+      total +=
+          offPeakKwh * (rate['off_peak_generation_rate'] as num).toDouble();
       foundSplit = true;
     }
     return foundSplit ? total : null;
@@ -228,6 +298,7 @@ class AppController extends ChangeNotifier {
     await applianceRepository.save(a);
     appliances = await applianceRepository.list();
     notifyListeners();
+    onLocalChange?.call();
   }
 
   double recordedKwh(DateTime from, DateTime through) {
@@ -259,6 +330,7 @@ class AppController extends ChangeNotifier {
     await repo.saveAll(entries);
     dailyUsages = await repo.list();
     notifyListeners();
+    onLocalChange?.call();
   }
 
   Future<void> removeAppliance(String id) async {
@@ -267,6 +339,7 @@ class AppController extends ChangeNotifier {
     dailyUsages.removeWhere((entry) => entry.applianceId == id);
     appliances = await applianceRepository.list();
     notifyListeners();
+    onLocalChange?.call();
   }
 
   Future<void> saveBill(Bill b) async {
@@ -274,6 +347,7 @@ class AppController extends ChangeNotifier {
     bills = await billRepository.list()
       ..sort((a, b) => b.periodEnd.compareTo(a.periodEnd));
     notifyListeners();
+    onLocalChange?.call();
   }
 
   Future<void> removeBill(String id) async {
@@ -281,5 +355,6 @@ class AppController extends ChangeNotifier {
     bills = await billRepository.list()
       ..sort((a, b) => b.periodEnd.compareTo(a.periodEnd));
     notifyListeners();
+    onLocalChange?.call();
   }
 }

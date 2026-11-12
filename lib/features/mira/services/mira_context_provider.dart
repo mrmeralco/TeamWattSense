@@ -1,3 +1,4 @@
+import 'meralco_guidance.dart';
 import 'pop_advice.dart';
 import '../../../shared/contracts/repositories.dart';
 
@@ -24,6 +25,8 @@ class MiraContextProvider {
     final start = today.subtract(const Duration(days: 29));
     final logs = await dailyUsage?.list(from: start, through: today) ?? [];
     return {
+      'meralcoReference': meralcoKnowledge,
+      'consumptionGuidance': meralcoGuidance(reviewed, language: language),
       'reviewedBills': [
         for (final b in reviewed)
           {

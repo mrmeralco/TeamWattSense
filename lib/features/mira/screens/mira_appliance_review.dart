@@ -22,13 +22,7 @@ class _MiraApplianceReviewState extends State<MiraApplianceReview> {
   void initState() {
     super.initState();
     fields = {
-      for (final k in [
-        'name',
-        'watts',
-        'hours_per_day',
-        'days_per_month',
-        'quantity'
-      ])
+      for (final k in ['name', 'watts', 'hours_per_day', 'quantity'])
         k: TextEditingController(
             text: widget.action.values[k]?.toString() ?? '')
     };
@@ -66,7 +60,7 @@ class _MiraApplianceReviewState extends State<MiraApplianceReview> {
         'name': fields['name']!.text.trim(),
         'watts': double.parse(fields['watts']!.text),
         'hours_per_day': double.parse(fields['hours_per_day']!.text),
-        'days_per_month': int.parse(fields['days_per_month']!.text),
+        'days_per_month': original?.daysPerMonth ?? 30,
         'quantity': int.parse(fields['quantity']!.text)
       };
       final validated = MiraApplianceAction.parse(values, inventory);
@@ -80,7 +74,7 @@ class _MiraApplianceReviewState extends State<MiraApplianceReview> {
       await widget.controller.saveAppliance(a);
       if (mounted) {
         Navigator.pop(context,
-            '${original == null ? 'Added' : 'Updated'} ${a.quantity} × ${a.name}: ${a.watts} W each, ${a.hoursPerDay} hours/day, ${a.daysPerMonth} days/month.');
+            '${original == null ? 'Added' : 'Updated'} ${a.quantity} × ${a.name}: ${a.watts} W each, ${a.hoursPerDay} hours/day.');
       }
     } catch (e) {
       if (mounted) {
@@ -110,7 +104,7 @@ class _MiraApplianceReviewState extends State<MiraApplianceReview> {
                       'Check the details before saving. Hours are your usual daily estimate; this does not change recorded daily usage.'),
                   if (widget.action.original != null)
                     Text(
-                        'Current: ${widget.action.original!.quantity} × ${widget.action.original!.name}, ${widget.action.original!.watts} W, ${widget.action.original!.hoursPerDay} h/day, ${widget.action.original!.daysPerMonth} days/month.'),
+                        'Current: ${widget.action.original!.quantity} × ${widget.action.original!.name}, ${widget.action.original!.watts} W, ${widget.action.original!.hoursPerDay} h/day.'),
                   for (final e in fields.entries)
                     Padding(
                         padding: const EdgeInsets.only(top: 12),
@@ -126,7 +120,6 @@ class _MiraApplianceReviewState extends State<MiraApplianceReview> {
                               'name': 'Appliance name',
                               'watts': 'Watts per appliance',
                               'hours_per_day': 'Usual hours per day',
-                              'days_per_month': 'Days per month',
                               'quantity': 'Quantity'
                             }[e.key]),
                             validator: (v) {
@@ -141,7 +134,6 @@ class _MiraApplianceReviewState extends State<MiraApplianceReview> {
                               final max = {
                                 'watts': 100000,
                                 'hours_per_day': 24,
-                                'days_per_month': 31,
                                 'quantity': 1000
                               }[e.key]!;
                               if (n == null ||
