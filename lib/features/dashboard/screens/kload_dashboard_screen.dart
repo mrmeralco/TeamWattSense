@@ -186,7 +186,11 @@ class _KLoadDashboardScreenState extends State<KLoadDashboardScreen> {
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
           children: [
             Row(children: [
-              const DesignIcon('14_6_imgHomeEnergyLogo'),
+              Image.asset('assets/figma/wattwise_logo.png',
+                  width: 44,
+                  height: 44,
+                  fit: BoxFit.contain,
+                  semanticLabel: 'WattWise'),
               const SizedBox(width: 10),
               Expanded(
                   child: Column(
@@ -279,13 +283,13 @@ class _KLoadDashboardScreenState extends State<KLoadDashboardScreen> {
                       'Tap an appliance to enter or revise today’s usage, just as in the regular dashboard.',
                       style: TextStyle(fontSize: 12, color: muted)),
                   const SizedBox(height: 8),
-                  if (c.appliances.isEmpty)
+                  if (c.appliancesForDate(today).isEmpty)
                     const Padding(
                         padding: EdgeInsets.symmetric(vertical: 12),
                         child: Text(
                             'No appliances yet. Add one to start recording usage.'))
                   else
-                    for (final appliance in c.appliances)
+                    for (final appliance in c.appliancesForDate(today))
                       Builder(builder: (context) {
                         final matching = c.dailyUsages.where((entry) =>
                             entry.applianceId == appliance.id &&

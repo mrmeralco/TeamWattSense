@@ -18,6 +18,7 @@ abstract interface class BillRepository {
 abstract interface class DailyUsageRepository {
   Future<List<DailyUsage>> list({DateTime? from, DateTime? through});
   Future<void> saveAll(List<DailyUsage> entries);
+  Future<void> removeForDate(String applianceId, DateTime date);
   Future<void> removeForAppliance(String applianceId);
 }
 

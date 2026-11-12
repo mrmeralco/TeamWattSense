@@ -171,20 +171,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final monthUsage = c.recordedKwh(monthStart, today);
     final popEstimate = c.popGenerationEstimate(monthStart, today);
     final buckets = _periodBuckets(c, scale, period);
-    final firstRecordedDay = <String, DateTime>{};
-    for (final entry in c.dailyUsages) {
-      final day = DateTime(entry.date.year, entry.date.month, entry.date.day);
-      final previous = firstRecordedDay[entry.applianceId];
-      if (previous == null || day.isBefore(previous)) {
-        firstRecordedDay[entry.applianceId] = day;
-      }
-    }
-    final visibleAppliances = c.appliances.where((appliance) {
-      final first = firstRecordedDay[appliance.id];
-      return first == null
-          ? !applianceDate.isBefore(today)
-          : !applianceDate.isBefore(first);
-    }).toList();
+    final visibleAppliances = c.appliancesForDate(applianceDate);
     final periodLabel = scale == 1
         ? DateFormat.yMMM().format(period)
         : scale == 2
@@ -196,7 +183,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
         children: [
           Row(children: [
-            const DesignIcon('14_6_imgHomeEnergyLogo'),
+            Image.asset('assets/figma/wattwise_logo.png',
+                width: 44,
+                height: 44,
+                fit: BoxFit.contain,
+                semanticLabel: 'WattWise'),
             const SizedBox(width: 10),
             Expanded(
                 child: Column(
@@ -392,7 +383,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           padding: const EdgeInsets.symmetric(vertical: 30),
                           child: Center(
                               child: Text(c.t(
-                                  'No appliances were recorded by this date.'))))
+                                  'No appliances were recorded on this date.'))))
                     else
                       LayoutBuilder(
                           builder: (context, constraints) =>
