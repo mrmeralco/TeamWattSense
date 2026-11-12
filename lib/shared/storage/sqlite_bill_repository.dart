@@ -27,6 +27,9 @@ class SqliteBillRepository implements BillRepository {
             sourceImage: m['sourceImage'] == null
                 ? null
                 : base64Decode(m['sourceImage']),
+            ratePerKwh: (m['ratePerKwh'] as num?)?.toDouble(),
+            insights: m['insights'] as String?,
+            savingsInsight: m['savingsInsight'] as String?,
             charges: (m['charges'] as List)
                 .map((c) => BillCharge(
                     name: c['name'],
@@ -64,6 +67,9 @@ class SqliteBillRepository implements BillRepository {
             'sourceImage': bill.sourceImage == null
                 ? null
                 : base64Encode(bill.sourceImage!),
+            'ratePerKwh': bill.effectiveRatePerKwh,
+            'insights': bill.insights,
+            'savingsInsight': bill.savingsInsight,
             'charges': bill.charges
                 .map((c) => {
                       'name': c.name,

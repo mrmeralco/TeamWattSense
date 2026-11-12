@@ -161,13 +161,20 @@ class _BillReviewFormState extends State<BillReviewForm> {
     if (busy || !key.currentState!.validate()) return;
     setState(() => busy = true);
     try {
+      final consumptionKwh = double.parse(usage.text);
+      final totalAmount = double.parse(amount.text);
       await widget.controller.saveBill(Bill(
           id: widget.bill?.id ??
               DateTime.now().microsecondsSinceEpoch.toString(),
           periodEnd: period,
           dueDate: due,
-          consumptionKwh: double.parse(usage.text),
-          totalAmount: double.parse(amount.text),
+          consumptionKwh: consumptionKwh,
+          totalAmount: totalAmount,
+          ratePerKwh: consumptionKwh > 0 ? totalAmount / consumptionKwh : 0,
+          insights: '${widget.controller.appliances.length} appliance entries estimate ${widget.controller.monthlyKwh.toStringAsFixed(1)} kWh/month. Your reviewed bill records ${usage.text} kWh. Different billing periods and actual usage can explain differences.',
+          savingsInsight: widget.controller.pop
+              ? 'POP is enabled in your preferences. Ask Mira about your plan; confirm its actual hours and rates on your bill.'
+              : 'Review high-wattage appliances and daily hours to find ways to save.',
           reviewed: true,
           sourceImage: widget.image ?? widget.bill?.sourceImage,
           sourceName: widget.sourceName ?? widget.bill?.sourceName,

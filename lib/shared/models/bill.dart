@@ -21,6 +21,9 @@ class Bill {
     this.reviewed = false,
     this.sourceName,
     this.sourceImage,
+    this.ratePerKwh,
+    this.insights,
+    this.savingsInsight,
   });
   final String id;
   final DateTime periodEnd, dueDate;
@@ -29,4 +32,9 @@ class Bill {
   final bool reviewed;
   final String? sourceName;
   final Uint8List? sourceImage;
+  final double? ratePerKwh;
+  final String? insights;
+  final String? savingsInsight;
+  double get effectiveRatePerKwh =>
+      ratePerKwh ?? (consumptionKwh > 0 ? totalAmount / consumptionKwh : 0);
 }
