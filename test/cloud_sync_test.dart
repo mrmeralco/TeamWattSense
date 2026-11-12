@@ -21,6 +21,14 @@ Future<SyncStore> device() async {
       'CREATE TABLE pop_usage_split(appliance_id TEXT,usage_date TEXT,peak_hours REAL,off_peak_hours REAL,PRIMARY KEY(appliance_id,usage_date))');
   await db.execute(
       'CREATE TABLE pop_usage_sessions(appliance_id TEXT,usage_date TEXT,started_at TEXT,stopped_at TEXT,PRIMARY KEY(appliance_id,usage_date))');
+  await db.execute(
+      'CREATE TABLE kload_profile(id INTEGER PRIMARY KEY,created_at TEXT NOT NULL)');
+  await db.execute(
+      'CREATE TABLE kload_transitions(effective_date TEXT PRIMARY KEY,enabled INTEGER NOT NULL,recorded_at TEXT NOT NULL)');
+  await db.execute(
+      'CREATE TABLE kload_rates(effective_date TEXT PRIMARY KEY,rate_per_kwh REAL NOT NULL,source TEXT NOT NULL,recorded_at TEXT NOT NULL)');
+  await db.execute(
+      'CREATE TABLE kload_balance_events(id TEXT PRIMARY KEY,event_date TEXT NOT NULL,event_type TEXT NOT NULL,amount REAL NOT NULL,note TEXT NOT NULL,recorded_at TEXT NOT NULL)');
   return SyncStore(db);
 }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' hide TextDirection;
@@ -6,6 +7,7 @@ import '../../../shared/components/design_widgets.dart';
 import '../../../shared/models/appliance.dart';
 import '../../../shared/theme/wattwise_theme.dart';
 import 'appliance_form.dart';
+import 'kload_dashboard_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen(
@@ -16,10 +18,56 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
-  int scale = 2;
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
+  int scale = 1;
   int periodOffset = 0;
   int applianceDayOffset = 0;
+  Timer? _dayRefreshTimer;
+  String _lastLocalDay = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _lastLocalDay = _todayKey;
+    _scheduleDayRefresh();
+  }
+
+  String get _todayKey {
+    final now = DateTime.now();
+    return '${now.year}-${now.month}-${now.day}';
+  }
+
+  void _scheduleDayRefresh() {
+    _dayRefreshTimer?.cancel();
+    final now = DateTime.now();
+    final nextDay = DateTime(now.year, now.month, now.day + 1);
+    _dayRefreshTimer = Timer(nextDay.difference(now), _refreshForNewDay);
+  }
+
+  void _refreshForNewDay() {
+    if (!mounted) return;
+    final today = _todayKey;
+    if (today != _lastLocalDay) {
+      _lastLocalDay = today;
+      setState(() {});
+    }
+    _scheduleDayRefresh();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshForNewDay();
+  }
+
+  @override
+  void dispose() {
+    _dayRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
   String money(double n) =>
       NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2)
           .format(n);
@@ -31,16 +79,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void edit([Appliance? a]) => Navigator.push(
       context,
       MaterialPageRoute<void>(
-          builder: (_) =>
-              ApplianceForm(controller: widget.controller, appliance: a, usageDate: applianceDate)));
+          builder: (_) => ApplianceForm(
+              controller: widget.controller,
+              appliance: a,
+              usageDate: applianceDate)));
 
   DateTime _periodStart(DateTime now, int scale, int offset) {
-    if (scale == 0) return DateTime(now.year, now.month, now.day + offset);
-    if (scale == 1) {
+    if (scale == 0) {
       final day = DateTime(now.year, now.month, now.day);
-      return day.subtract(Duration(days: day.weekday - 1)).add(Duration(days: 7 * offset));
+      return day
+          .subtract(Duration(days: day.weekday - 1))
+          .add(Duration(days: 7 * offset));
     }
-    if (scale == 2) return DateTime(now.year, now.month + offset);
+    if (scale == 1) return DateTime(now.year, now.month + offset);
     return DateTime(now.year + offset, 1);
   }
 
@@ -55,18 +106,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   List<double?> _periodBuckets(AppController c, int scale, DateTime start) {
-    if (scale == 0) return [_recordedBucket(c, start, start)];
-    if (scale == 1) {
+    if (scale == 0) {
       return List.generate(
           7,
           (i) => _recordedBucket(
               c, start.add(Duration(days: i)), start.add(Duration(days: i))));
     }
-    if (scale == 2) {
+    if (scale == 1) {
       final days = DateTime(start.year, start.month + 1, 0).day;
       final weekCount = ((start.weekday - 1 + days) / 7).ceil();
       return List.generate(weekCount, (i) {
-        final weekStart = start.add(Duration(days: i * 7 - (start.weekday - 1)));
+        final weekStart =
+            start.add(Duration(days: i * 7 - (start.weekday - 1)));
         final from = weekStart.isBefore(start) ? start : weekStart;
         final weekEnd = weekStart.add(const Duration(days: 6));
         final monthEnd = DateTime(start.year, start.month, days);
@@ -79,30 +130,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return _recordedBucket(c, from, DateTime(start.year, i + 2, 0));
     });
   }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
+    final now = DateTime.now();
+    if (c.kloadForDate(DateTime(now.year, now.month, now.day))) {
+      return KLoadDashboardScreen(controller: c);
+    }
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    Widget stat(String icon, String label, String value) => SurfaceCard(
-        padding: const EdgeInsets.all(12),
-        child: Row(children: [
-          DesignIcon(icon),
-          const SizedBox(width: 12),
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                FittedBox(
-                    alignment: Alignment.centerLeft,
-                    fit: BoxFit.scaleDown,
-                    child: Text(c.t(label),
-                        style: TextStyle(fontSize: 10, color: muted))),
-                const SizedBox(height: 4),
-                Text(value,
-                    style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w600))
-              ]))
-        ]));
     Widget summary(String label, String value, String note) => Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -124,12 +160,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 12),
           Text(note, style: const TextStyle(fontSize: 10))
         ]));
-    final now = DateTime.now();
     final period = _periodStart(now, scale, periodOffset);
-    final periodEnd = scale == 0 ? period : scale == 1
+    final periodEnd = scale == 0
         ? period.add(const Duration(days: 6))
-        : scale == 2 ? DateTime(period.year, period.month + 1, 0)
-        : DateTime(period.year, 12, 31);
+        : scale == 1
+            ? DateTime(period.year, period.month + 1, 0)
+            : DateTime(period.year, 12, 31);
     final today = DateTime(now.year, now.month, now.day);
     final monthStart = DateTime(now.year, now.month);
     final monthUsage = c.recordedKwh(monthStart, today);
@@ -149,11 +185,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ? !applianceDate.isBefore(today)
           : !applianceDate.isBefore(first);
     }).toList();
-    final periodLabel = scale == 2
+    final periodLabel = scale == 1
         ? DateFormat.yMMM().format(period)
-        : scale == 3 ? '${period.year}'
-        : scale == 1 ? '${DateFormat.MMMd().format(period)} – ${DateFormat.MMMd().format(periodEnd)}'
-        : DateFormat.MMMd().format(period);
+        : scale == 2
+            ? '${period.year}'
+            : scale == 0
+                ? '${DateFormat.MMMd().format(period)} – ${DateFormat.MMMd().format(periodEnd)}'
+                : DateFormat.MMMd().format(period);
     return ListView(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
         children: [
@@ -223,9 +261,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Expanded(
                           child: ChoiceBar(
                               compact: true,
-                              labels: ['Day', 'Week', 'Month', 'Year']
-                                  .map(c.t)
-                                  .toList(),
+                              labels:
+                                  ['Week', 'Month', 'Year'].map(c.t).toList(),
                               selected: scale,
                               onChanged: (v) => setState(() {
                                     scale = v;
@@ -279,20 +316,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: c.appliances.isEmpty
                             ? Center(
                                 child: Text(
-                                    c.t('Add an appliance and enter its daily hours to see recorded usage.'),
+                                    c.t(
+                                        'Add an appliance and enter its daily hours to see recorded usage.'),
                                     textAlign: TextAlign.center,
                                     style:
                                         TextStyle(fontSize: 12, color: muted)))
                             : buckets.every((value) => value == null)
                                 ? Center(
-                                    child: Text(c.t('No entries recorded for this period.'),
-                                        style: TextStyle(fontSize: 11, color: muted)))
+                                    child: Text(
+                                        c.t(
+                                            'No entries recorded for this period.'),
+                                        style: TextStyle(
+                                            fontSize: 11, color: muted)))
                                 : CustomPaint(
-                                size: const Size(double.infinity, 76),
-                                painter: UsagePainter(
-                                    values: buckets,
-                                    scale: scale,
-                                    color: muted))),
+                                    size: const Size(double.infinity, 76),
+                                    painter: UsagePainter(
+                                        values: buckets,
+                                        scale: scale,
+                                        color: muted))),
                     const SizedBox(height: 4),
                     Text(
                         'Only manually entered daily usage is included. Missing days are not counted as zero.',
@@ -332,7 +373,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Expanded(
                           child: Text(DateFormat.yMMMMd().format(applianceDate),
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontWeight: FontWeight.w600))),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600))),
                       IconButton(
                           tooltip: c.t('Next day'),
                           onPressed: applianceDayOffset >= 0
@@ -349,7 +391,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Padding(
                           padding: const EdgeInsets.symmetric(vertical: 30),
                           child: Center(
-                              child: Text(c.t('No appliances were recorded by this date.'))))
+                              child: Text(c.t(
+                                  'No appliances were recorded by this date.'))))
                     else
                       LayoutBuilder(
                           builder: (context, constraints) =>
@@ -369,26 +412,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                             heading: true),
                                         for (final a in visibleAppliances)
                                           Builder(builder: (context) {
-                                            final entry = c.dailyUsages.where((e) =>
-                                                e.applianceId == a.id &&
-                                                e.date.year == applianceDate.year &&
-                                                e.date.month == applianceDate.month &&
-                                                e.date.day == applianceDate.day).toList();
-                                            final usage = entry.isEmpty ? null : entry.first;
+                                            final entry = c.dailyUsages
+                                                .where((e) =>
+                                                    e.applianceId == a.id &&
+                                                    e.date.year ==
+                                                        applianceDate.year &&
+                                                    e.date.month ==
+                                                        applianceDate.month &&
+                                                    e.date.day ==
+                                                        applianceDate.day)
+                                                .toList();
+                                            final usage = entry.isEmpty
+                                                ? null
+                                                : entry.first;
                                             return InkWell(
-                                              onTap: () => edit(a),
-                                              child: _row([
-                                                a.name,
-                                                usage == null ? '—' : '${usage.hours.toStringAsFixed(1)} h',
-                                                '${c.billRate.toStringAsFixed(2)} ₱/kWh',
-                                                usage == null ? '—' : money(usage.kwh * c.billRate)
-                                              ], appliance: a));
+                                                onTap: () => edit(a),
+                                                child: _row([
+                                                  a.name,
+                                                  usage == null
+                                                      ? '—'
+                                                      : '${usage.hours.toStringAsFixed(1)} h',
+                                                  '${c.billRate.toStringAsFixed(2)} ₱/kWh',
+                                                  usage == null
+                                                      ? '—'
+                                                      : money(usage.kwh *
+                                                          c.billRate)
+                                                ], appliance: a));
                                           }),
                                       ])))),
-                    if (visibleAppliances.isNotEmpty && !c.hasUsageForDay(applianceDate))
+                    if (visibleAppliances.isNotEmpty &&
+                        !c.hasUsageForDay(applianceDate))
                       Padding(
                           padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Text(c.t('No entries for this day. Tap an appliance to add its daily use.'),
+                          child: Text(
+                              c.t('No entries for this day. Tap an appliance to add its daily use.'),
                               style: TextStyle(fontSize: 11, color: muted))),
                     TextButton(
                         onPressed: () async {
@@ -493,24 +550,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 class UsagePainter extends CustomPainter {
-  UsagePainter({required this.values, required this.color, required this.scale});
+  UsagePainter(
+      {required this.values, required this.color, required this.scale});
   final List<double?> values;
   final Color color;
   final int scale;
   @override
   void paint(Canvas canvas, Size size) {
     final width = size.width - 70, height = size.height - 24;
-    final maxValue = values.fold<double>(0, (current, value) =>
-        value == null ? current : math.max(current, value).toDouble());
+    final maxValue = values.fold<double>(
+        0,
+        (current, value) =>
+            value == null ? current : math.max(current, value).toDouble());
     final top = math.max(1.0, maxValue * 1.25).toDouble();
-    void label(String value, Offset at, {bool right = false}) {
+    void label(String value, Offset at,
+        {bool right = false, bool centered = false}) {
       final text = TextPainter(
           text: TextSpan(
               text: value,
               style: TextStyle(fontSize: 8, color: color, fontFamily: 'Inter')),
           textDirection: TextDirection.ltr)
         ..layout();
-      text.paint(canvas, Offset(right ? at.dx - text.width : at.dx, at.dy));
+      final dx = centered
+          ? at.dx - text.width / 2
+          : right
+              ? at.dx - text.width
+              : at.dx;
+      text.paint(canvas, Offset(dx, at.dy));
     }
 
     for (var i = 0; i < 5; i++) {
@@ -521,11 +587,15 @@ class UsagePainter extends CustomPainter {
     }
     for (var i = 0; i < values.length; i++) {
       final value = values[i];
-      if (value == null) continue;
       final x = 30 + width * (i + .5) / values.length;
+      if (scale == 0) {
+        final weekday = DateFormat.E().format(DateTime(2020, 1, 6 + i));
+        label(weekday, Offset(x, height + 8), centered: true);
+      }
+      if (value == null) continue;
       final barWidth = math.min(32.0, width / values.length * .65).toDouble();
-      final bar = Rect.fromLTWH(x - barWidth / 2,
-          height - value / top * height, barWidth, value / top * height);
+      final bar = Rect.fromLTWH(x - barWidth / 2, height - value / top * height,
+          barWidth, value / top * height);
       canvas.drawRRect(
           RRect.fromRectAndRadius(bar, const Radius.circular(3)),
           Paint()
@@ -537,20 +607,16 @@ class UsagePainter extends CustomPainter {
       if (value == 0) {
         canvas.drawCircle(Offset(x, height), 2, Paint()..color = green);
       }
-      final text = scale == 0
-          ? 'Day'
-          : scale == 1
-              ? DateFormat.E().format(DateTime(2020, 1, 6 + i))
-              : scale == 2
-                  ? 'W${i + 1}'
-                  : DateFormat.MMM().format(DateTime(2020, i + 1));
-      label(text, Offset(x - 14, height + 8));
+      if (scale != 0) {
+        final text = scale == 1
+            ? 'W${i + 1}'
+            : DateFormat.MMM().format(DateTime(2020, i + 1));
+        label(text, Offset(x, height + 8), centered: true);
+      }
     }
   }
 
   @override
   bool shouldRepaint(UsagePainter old) =>
-      old.values != values ||
-      old.scale != scale ||
-      old.color != color;
+      old.values != values || old.scale != scale || old.color != color;
 }

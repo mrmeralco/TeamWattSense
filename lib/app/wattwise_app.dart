@@ -59,17 +59,24 @@ class _WattWiseAppState extends State<WattWiseApp> {
   }
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-      listenable: widget.controller,
-      builder: (context, _) {
-        final c = widget.controller;
-        return MaterialApp(
-            title: 'WattWise',
-            debugShowCheckedModeBanner: false,
-            theme: wattwiseTheme(false),
-            darkTheme: wattwiseTheme(true),
-            themeMode: c.dark ? ThemeMode.dark : ThemeMode.light,
-            home: Builder(
+  Widget build(BuildContext context) {
+    final c = widget.controller;
+    return MaterialApp(
+        title: 'WattWise',
+        debugShowCheckedModeBanner: false,
+        theme: wattwiseTheme(false),
+        darkTheme: wattwiseTheme(true),
+        themeMode: ThemeMode.light,
+        builder: (context, child) => ListenableBuilder(
+              listenable: c,
+              builder: (context, _) => Theme(
+                data: c.dark ? wattwiseTheme(true) : wattwiseTheme(false),
+                child: child ?? const SizedBox.shrink(),
+              ),
+            ),
+        home: ListenableBuilder(
+            listenable: c,
+            builder: (context, _) => Builder(
                 builder: (context) => Scaffold(
                       body: SafeArea(
                           child: Center(
@@ -193,6 +200,6 @@ class _WattWiseAppState extends State<WattWiseApp> {
                                                               ]))))));
                                     })),
                                   )))),
-                    )));
-      });
+                    ))));
+  }
 }

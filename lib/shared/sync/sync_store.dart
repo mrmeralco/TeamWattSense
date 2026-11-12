@@ -10,6 +10,10 @@ const syncKeys = <String, List<String>>{
   'pop_rates': ['effective_month'],
   'pop_usage_split': ['appliance_id', 'usage_date'],
   'pop_usage_sessions': ['appliance_id', 'usage_date'],
+  'kload_profile': ['id'],
+  'kload_transitions': ['effective_date'],
+  'kload_rates': ['effective_date'],
+  'kload_balance_events': ['id'],
 };
 const syncPreferences = ['dark', 'language', 'rate', 'pop'];
 
@@ -126,7 +130,8 @@ class SyncStore {
     }
     if (record.row != null) {
       for (var i = 0; i < keyValues.length; i++) {
-        if (record.row![syncKeys[record.table]![i]].toString() != keyValues[i]) {
+        if (record.row![syncKeys[record.table]![i]].toString() !=
+            keyValues[i]) {
           throw const FormatException('Mismatched cloud record');
         }
       }

@@ -22,7 +22,7 @@ class SqliteApplianceRepository implements ApplianceRepository {
     final database = await openDatabase(
       p.join(await getDatabasesPath(),
           userId == null ? 'wattwise.db' : databaseNameForUser(userId)),
-      version: 6,
+      version: 8,
       onCreate: (db, version) async {
         await db.execute(
           'CREATE TABLE appliances (id TEXT PRIMARY KEY, '
@@ -37,6 +37,7 @@ class SqliteApplianceRepository implements ApplianceRepository {
         );
         await _createPopTables(db);
         await _createPopSessionTable(db);
+        await _createKLoadTables(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) await SqliteBillRepository.createTables(db);
@@ -57,6 +58,9 @@ class SqliteApplianceRepository implements ApplianceRepository {
         }
         if (oldVersion < 5) await _createPopTables(db);
         if (oldVersion < 6) await _createPopSessionTable(db);
+        // Repeat creation idempotently for databases that reached version 7
+        // before the KLoad tables were present in every installed build.
+        if (oldVersion < 8) await _createKLoadTables(db);
       },
     );
     return SqliteApplianceRepository(database);
@@ -106,6 +110,44 @@ class SqliteApplianceRepository implements ApplianceRepository {
         PRIMARY KEY (appliance_id, usage_date),
         CHECK (stopped_at > started_at)
       )
+    ''');
+  }
+
+  static Future<void> _createKLoadTables(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS kload_profile (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS kload_transitions (
+        effective_date TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+        recorded_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS kload_rates (
+        effective_date TEXT PRIMARY KEY,
+        rate_per_kwh REAL NOT NULL CHECK (rate_per_kwh >= 0),
+        source TEXT NOT NULL,
+        recorded_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS kload_balance_events (
+        id TEXT PRIMARY KEY,
+        event_date TEXT NOT NULL,
+        event_type TEXT NOT NULL CHECK (event_type IN ('initial', 'top_up', 'adjustment')),
+        amount REAL NOT NULL,
+        note TEXT NOT NULL,
+        recorded_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_kload_balance_events_date
+      ON kload_balance_events (event_date)
     ''');
   }
 

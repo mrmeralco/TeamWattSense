@@ -11,6 +11,17 @@ String? _rateValidator(String? value) {
   return null;
 }
 
+String? _loadBalanceValidator(String? value) {
+  final balance = double.tryParse(value ?? '');
+  if (balance == null ||
+      !balance.isFinite ||
+      balance < 0 ||
+      balance > 100000000) {
+    return 'Enter a valid balance';
+  }
+  return null;
+}
+
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen(
       {super.key, required this.controller, this.accountEmail, this.onSignOut});
@@ -119,6 +130,131 @@ class SettingsScreen extends StatelessWidget {
       }
     }
 
+    Future<void> changeKLoad(bool value) async {
+      if (value) {
+        final balance = TextEditingController();
+        final rate = TextEditingController();
+        final key = GlobalKey<FormState>();
+        final existing = c.hasKLoadProfile;
+        ModalRoute<dynamic>? dialogRoute;
+        final result = await showDialog<List<String>>(
+          context: context,
+          builder: (dialogContext) {
+            dialogRoute = ModalRoute.of(dialogContext);
+            return AlertDialog(
+              title:
+                  Text(c.t(existing ? 'Resume KLoad now' : 'Set up KLoad now')),
+              content: SizedBox(
+                width: 420,
+                child: SingleChildScrollView(
+                  child: Form(
+                    key: key,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          c.t('KLoad starts immediately. Your balance is reconciled with saved entries for today. Daily entries have no time detail, so the estimate cannot separate usage from before or after activation.'),
+                          style: const TextStyle(fontSize: 13, height: 1.45),
+                        ),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          controller: balance,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: InputDecoration(
+                            labelText: c.t('Current KLoad balance'),
+                            helperText:
+                                c.t('Enter the balance shown on KLoad.'),
+                            prefixText: '₱ ',
+                          ),
+                          validator: _loadBalanceValidator,
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: rate,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: InputDecoration(
+                            labelText: c.t('KLoad rate'),
+                            helperText: c.t('Enter the rate shown on KLoad.'),
+                            suffixText: 'PHP/kWh',
+                          ),
+                          validator: _rateValidator,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () {
+                      FocusScope.of(dialogContext).unfocus();
+                      Navigator.pop(dialogContext);
+                    },
+                    child: Text(c.t('Cancel'))),
+                FilledButton(
+                    onPressed: () {
+                      if (key.currentState!.validate()) {
+                        FocusScope.of(dialogContext).unfocus();
+                        Navigator.pop(dialogContext, [balance.text, rate.text]);
+                      }
+                    },
+                    child: Text(c.t(existing ? 'Resume now' : 'Activate now'))),
+              ],
+            );
+          },
+        );
+        await dialogRoute?.completed;
+        balance.dispose();
+        rate.dispose();
+        if (result == null) return;
+        try {
+          await c.scheduleKLoadActivation(
+            startingBalance: double.parse(result[0]),
+            rate: double.parse(result[1]),
+          );
+        } catch (e) {
+          if (context.mounted) showFailure(context, e);
+        }
+        return;
+      }
+      ModalRoute<dynamic>? dialogRoute;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          dialogRoute = ModalRoute.of(dialogContext);
+          return AlertDialog(
+            title: Text(c.t('Turn off KLoad dashboard?')),
+            content: Text(c.t(
+                'The regular dashboard returns immediately. Appliance entries and KLoad history are kept. KLoad estimates will stop including usage from today while tracking is off.')),
+            actions: [
+              TextButton(
+                  onPressed: () {
+                    FocusScope.of(dialogContext).unfocus();
+                    Navigator.pop(dialogContext, false);
+                  },
+                  child: Text(c.t('Cancel'))),
+              FilledButton(
+                  onPressed: () {
+                    FocusScope.of(dialogContext).unfocus();
+                    Navigator.pop(dialogContext, true);
+                  },
+                  child: Text(c.t('Confirm'))),
+            ],
+          );
+        },
+      );
+      await dialogRoute?.completed;
+      if (confirmed != true) return;
+      try {
+        await c.scheduleKLoadDeactivation();
+      } catch (e) {
+        if (context.mounted) showFailure(context, e);
+      }
+    }
+
     Widget card(String title, String description, Widget child) => SurfaceCard(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -185,6 +321,30 @@ class SettingsScreen extends StatelessWidget {
                   labels: [c.t('Light'), c.t('Dark')],
                   selected: c.dark ? 1 : 0,
                   onChanged: (v) => change('dark', '${v == 1}'))),
+          const SizedBox(height: 16),
+          SurfaceCard(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(c.t('KLoad budget dashboard'),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                Text(
+                    c.t('Switch to a separate KLoad view that estimates costs from daily appliance entries and the load balance you enter.'),
+                    style: const TextStyle(fontSize: 12, height: 1.5)),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(child: Text(c.t('Use KLoad dashboard'))),
+                  Switch(value: c.kloadSwitchValue, onChanged: changeKLoad),
+                ]),
+                Text(
+                    c.t(
+                        'Starts or stops immediately. KLoad is separate from POP; switching modes keeps your appliance history.'),
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              ])),
           const SizedBox(height: 16),
           SurfaceCard(
               child: Column(

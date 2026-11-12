@@ -5,6 +5,7 @@ import '../shared/models/appliance.dart';
 import '../shared/models/bill.dart';
 import '../shared/models/daily_usage.dart';
 import '../shared/localization/strings.dart';
+import '../features/dashboard/services/kload_service.dart';
 
 class AppController extends ChangeNotifier {
   AppController(
@@ -30,6 +31,9 @@ class AppController extends ChangeNotifier {
   bool dark = false, pop = false;
   List<Map<String, Object?>> popTransitions = [];
   List<Map<String, Object?>> popRates = [];
+  List<Map<String, Object?>> kloadTransitions = [];
+  List<Map<String, Object?>> kloadRates = [];
+  List<Map<String, Object?>> kloadBalanceEvents = [];
   final Map<String, Map<String, double>> popUsageSplits = {};
   final Map<String, Map<String, DateTime>> popUsageSessions = {};
   String language = 'en';
@@ -62,6 +66,12 @@ class AppController extends ChangeNotifier {
       popTransitions =
           await db.query('pop_transitions', orderBy: 'effective_date');
       popRates = await db.query('pop_rates', orderBy: 'effective_month');
+      final kloadService = KLoadService(db);
+      await kloadService.applyPendingModeChangeNow();
+      kloadTransitions = await kloadService.transitions();
+      kloadRates = await db.query('kload_rates', orderBy: 'effective_date');
+      kloadBalanceEvents =
+          await db.query('kload_balance_events', orderBy: 'event_date');
       popUsageSplits.clear();
       for (final row in await db.query('pop_usage_split')) {
         popUsageSplits['${row['appliance_id']}:${row['usage_date']}'] = {
@@ -123,6 +133,89 @@ class AppController extends ChangeNotifier {
     return pending.isEmpty
         ? popForDate(DateTime.now())
         : (pending.last['enabled'] == 1 || pending.last['enabled'] == true);
+  }
+
+  bool kloadForDate(DateTime date) {
+    final target = KLoadService.dateKey(date);
+    var enabled = false;
+    for (final row in kloadTransitions) {
+      if ((row['effective_date'] as String).compareTo(target) > 0) break;
+      enabled = row['enabled'] == 1 || row['enabled'] == true;
+    }
+    return enabled;
+  }
+
+  bool get kloadSwitchValue {
+    return kloadForDate(DateTime.now());
+  }
+
+  bool get hasKLoadProfile =>
+      kloadBalanceEvents.any((row) => row['event_type'] == 'initial');
+
+  Future<void> scheduleKLoadActivation({
+    required double startingBalance,
+    required double rate,
+  }) async {
+    final service = database == null ? null : KLoadService(database!);
+    if (service == null) throw StateError('KLoad storage is unavailable');
+    final todayKey = KLoadService.dateKey(DateTime.now());
+    final applianceIds = appliances.map((a) => a.id).toSet();
+    final todayKwh = dailyUsages
+        .where((entry) =>
+            applianceIds.contains(entry.applianceId) &&
+            entry.dateKey == todayKey)
+        .fold<double>(0, (sum, entry) => sum + entry.kwh);
+    var adjustment = todayKwh * rate;
+    if (hasKLoadProfile) {
+      final current = await service.summarize(
+          entries: dailyUsages, existingApplianceIds: applianceIds);
+      adjustment = startingBalance -
+          current.estimatedBalance +
+          (todayKwh * rate) -
+          current.todayCost;
+    }
+    await service.scheduleActivation(
+        startingBalance: startingBalance,
+        rate: rate,
+        balanceAdjustment: adjustment);
+    await _reloadKLoad();
+  }
+
+  Future<void> scheduleKLoadDeactivation() async {
+    final service = database == null ? null : KLoadService(database!);
+    if (service == null) throw StateError('KLoad storage is unavailable');
+    await service.scheduleDeactivation();
+    await _reloadKLoad();
+  }
+
+  Future<void> saveKLoadRate(double value) async {
+    final service = database == null ? null : KLoadService(database!);
+    if (service == null) throw StateError('KLoad storage is unavailable');
+    await service.saveRate(rate: value);
+    await _reloadKLoad();
+  }
+
+  Future<void> addKLoadBalanceEvent({
+    required String id,
+    required DateTime date,
+    required double amount,
+  }) async {
+    final service = database == null ? null : KLoadService(database!);
+    if (service == null) throw StateError('KLoad storage is unavailable');
+    await service.addBalanceEvent(id: id, date: date, amount: amount);
+    await _reloadKLoad();
+  }
+
+  Future<void> _reloadKLoad() async {
+    final db = database;
+    if (db == null) return;
+    kloadTransitions =
+        await db.query('kload_transitions', orderBy: 'effective_date');
+    kloadRates = await db.query('kload_rates', orderBy: 'effective_date');
+    kloadBalanceEvents =
+        await db.query('kload_balance_events', orderBy: 'event_date');
+    notifyListeners();
+    onLocalChange?.call();
   }
 
   Future<void> schedulePopChange(bool enabled,
