@@ -161,19 +161,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     final monthUsage = c.recordedKwh(monthStart, today);
     final popEstimate = c.popGenerationEstimate(monthStart, today);
     final buckets = _periodBuckets(c, scale, period);
-<<<<<<< HEAD
-    final visibleAppliances = c.appliances.where((appliance) {
-      return c.dailyUsages.any((entry) =>
-          entry.applianceId == appliance.id &&
-          entry.date.year == applianceDate.year &&
-          entry.date.month == applianceDate.month &&
-          entry.date.day == applianceDate.day);
-    }).toList();
-    final periodLabel = scale == 0
-=======
     final visibleAppliances = c.appliancesForDate(applianceDate);
-    final periodLabel = scale == 1
->>>>>>> 9fba20a30815c0423ab46daf5828067744b03dda
+    final periodLabel = scale == 0
         ? DateFormat.yMMM().format(period)
         : scale == 1
             ? '${period.year}'
